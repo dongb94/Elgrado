@@ -27,22 +27,31 @@ public abstract class Enemy : Unit
     public float DistanceTowardPlayer { get; private set; }
     public float DistanceTowardBase { get; private set; }
 
-    [NonSerialized] public Activity UnitActivity;
+    [NonSerialized] public Activity UnitActivity = Activity.Rest;
     [NonSerialized] public Vector3 CampingPosition;
     [NonSerialized] public int AttackCooldownLeft;    
         
-    private GameObject _healthBar;
+    private FormattedMonoBehaviour _healthBar;
     private Quaternion _rotation;
     private UIEnemyStateView _uiEnemyStateView;
     private NavMeshAgent _navMeshAgent;
 
     private float _ignoreFocusTime;
+    private float focusRadius;
 //    private Spawner _spawner;
     private bool _isFocused;
-    
-    private static Champion Focus
+
+    private Unit lastHurtingThisUnit;
+    private Unit Focus
     {
-        get { return PlayerManager.GetInstance.PlayerChampion; }
+        get
+        {
+            if (lastHurtingThisUnit != null && lastHurtingThisUnit.activeSelf && lastHurtingThisUnit.State != UnitState.Dead) return lastHurtingThisUnit;
+            lastHurtingThisUnit = null;
+            var filteredObjectNumber = Filter.GetTagGroupInRadiusCompareToTag("Player",focusRadius, FilterCheckedObjectArray,_Transform.position);
+            if (filteredObjectNumber == 0) return null;
+            return (Unit)FilterCheckedObjectArray[0];
+        }
     }
     
     #endregion </Fields>
@@ -70,6 +79,7 @@ public abstract class Enemy : Unit
 //        _uiEnemyStateView = GetComponent<UIEnemyStateView>();
 //        _spawner = GetComponentInParent<Spawner>();
         _ignoreFocusTime = .0f;
+        focusRadius = FocusRadius;
         FocusRadius *= FocusRadius;
         FocusReleaseRadius *= FocusReleaseRadius;
         AttackRange *= AttackRange;
@@ -84,8 +94,7 @@ public abstract class Enemy : Unit
     {
         base.FixedUpdate();
         
-        if (Focus == null
-            || State == UnitState.Dead 
+        if (State == UnitState.Dead 
             || UnitBoneAnimator.CurrentState == BoneAnimator.AnimationState.Hit
             || UnitBoneAnimator.CurrentState == BoneAnimator.AnimationState.Cast) return;
         
@@ -107,7 +116,7 @@ public abstract class Enemy : Unit
                 throw new ArgumentOutOfRangeException();
         }
         
-        if (UnitBoneAnimator.CurrentState != BoneAnimator.AnimationState.Move) return;
+        if (UnitBoneAnimator.CurrentState != BoneAnimator.AnimationState.Move && UnitActivity != Activity.Returntocamp) return;
         
         switch (UnitActivity)
         {
@@ -146,7 +155,7 @@ public abstract class Enemy : Unit
             if (DecayTimeLeft <= 0)
             {
                 MaterialApplier.RevertTrigger();
-                ObjectManager.RemoveObject(gameObject);
+                ObjectManager.RemoveObject(this);
             }
 
             return;
@@ -161,7 +170,7 @@ public abstract class Enemy : Unit
     public override void OnCreated()
     {
         base.OnCreated();
-        
+        lastHurtingThisUnit = null;
         _isFocused = false;
         _healthBar = null;
         AttackCooldownLeft = AttackCooldown;
@@ -212,10 +221,9 @@ public abstract class Enemy : Unit
                     Move(_navMeshAgent.destination = Focus.transform.position);
 
                 /*
-                 * before code
-                 * 
-                Move(GetNormDirectionToMove(Focus));
-                */
+                  SwitchActivity(Activity.Hunt);      
+                  Move(GetNormDirectionToMove(Focus));
+                  */
             }
         }
         else
@@ -254,16 +262,21 @@ public abstract class Enemy : Unit
     public override void Hurt(Unit caster, int damage, TextureType type, Vector3 forceDirection, 
         Action<Unit, Unit, Vector3> action = null, bool isCancelCast = true)
     {                
-        base.Hurt(caster, damage, type, forceDirection, action, isCancelCast);                
+        base.Hurt(caster, damage, type, forceDirection, action, isCancelCast);
+
+        _navMeshAgent.enabled = false;
 
         if (State == UnitState.Lives)
         {
             SoundManager.GetInstance.CastSfx(SoundManager.AudioMixerType.VOICE,EnemyType,K514SfxStorage.ActivityType.Dead).SetTrigger();
             UnitBoneAnimator.SetTrigger(BoneAnimator.AnimationState.Hit);
         }
+        
 
         // @Temp: when it attacked in out of range, it would be tracking on you until you're in dead.
         IsCampUnit = false;
+
+        lastHurtingThisUnit = caster;
         _isFocused = true;
         SwitchActivity(Activity.Hunt);
 
@@ -316,6 +329,7 @@ public abstract class Enemy : Unit
                 if (_healthBar != null) return;
                 
                 // Distance, this enemy with the focusing target
+                if (Focus == null) return;
                 var distance = Vector3.Distance(GetUnitOrthographicPosition, Focus.GetUnitOrthographicPosition);
                 // @TODO<Carey>: Fix the margin vector3.up to be a detail factor.
                 // Direction, catch the player's location
@@ -372,27 +386,29 @@ public abstract class Enemy : Unit
     
     private void UpdateFocus()
     {
-        DistanceTowardPlayer = MathVector.SqrDistance(Focus.GetUnitOrthographicPosition, GetUnitOrthographicPosition);
         DistanceTowardBase = MathVector.SqrDistance(CampingPosition, GetUnitPosition);
         
-        if (!_isFocused)
-        {       
-            if (DistanceTowardPlayer > FocusRadius) return;
-            if (_ignoreFocusTime > Mathf.Epsilon)
-            {
-                _ignoreFocusTime -= Time.fixedDeltaTime;
-                return;
-            }
-
-            _isFocused = true;
-            SwitchActivity(Activity.Hunt);
-        }
-        else
+        if (Focus == null)
         {
-            if (IsCampUnit && DistanceTowardBase > FocusReleaseRadius)
+            _isFocused = false;
+            if (DistanceTowardBase > FocusReleaseRadius)
             {
                 _isFocused = false;
                 SwitchActivity(Activity.Returntocamp);
+            }
+        }
+        else
+        {
+            DistanceTowardPlayer = MathVector.SqrDistance(Focus._Transform.position, GetUnitPosition);
+            if (!_isFocused)
+            {           
+                if (_ignoreFocusTime > Mathf.Epsilon)
+                {
+                    _ignoreFocusTime -= Time.fixedDeltaTime;
+                    return;
+                }
+                _isFocused = true;
+                SwitchActivity(Activity.Hunt);
             }
             if(IsInAttackRange)
             {

@@ -23,15 +23,25 @@ public class Psyous : Champion {
     private static readonly Vector3 ForceHammer_Range = new Vector3(2.5f, 0.0f, 0.0f);  // (horizon wide, height, vertical wide) Sphere type
     private static readonly Vector3 MagmaBall_Range = new Vector3(0.5f, 2.0f, 0.015f);  // (horizon wide, height, vertical wide) Box type
     private static readonly Vector3 FireRain_Range = new Vector3(3.0f, 0.0f, 0.0f);  // (horizon wide, height, vertical wide) Sphere type
+    private static readonly Vector3 MagicHand_Range = new Vector3(3.0f, 2.0f, 1.0f);  // (horizon wide, height, vertical wide) Box type
 
     /// cached skill information [speed, (int)damage, (int)max_collider, life_time]
     private static readonly float[] NormalAction_Info = { 30.0f, 3.0f, 1f, 0.5f };
     private static readonly float[] FireBall_Info =     { 20.0f, 5.0f, 5f, 5.0f };
     private static readonly float[] ForceHammer_Info =  { 0.0f, 10.0f, 10f, 1.0f };
     private static readonly float[] MagmaBall_Info =    { 5.0f, 1.0f, 5f, 5.0f };
-    private static readonly float[] FireRain_Info =     { 0.0f, 2.0f, 10f, 3.0f };
+    private static readonly float[] FireRain_Info =     { 0.0f, 1.0f, 10f, 5.0f };
+    private static readonly float[] MagicHand_Info =    { 20.0f, 2.0f, 10f, 5.0f };
+
+    private static readonly float Blink_Range = 1.5f;
+    private static readonly float Binding_Range = 5.0f;
 
     #endregion </Consts>
+
+    #region <Feild>
+    private bool isMagicHandGrab = false;
+    private Projectile grabedUnit;
+    #endregion
 
     #region <Unity/Callbacks>
 
@@ -48,7 +58,7 @@ public class Psyous : Champion {
             NormalAction03(HUDManager.GetInstance.ActionTriggerGroup[(int)ActionTrigger.TriggerType.MainTrigger])
         };
 
-        PrimaryActionEventGroup = Spell02(HUDManager.GetInstance.ActionTriggerGroup[(int)ActionTrigger.TriggerType.SubTriggerLeft]);
+        PrimaryActionEventGroup = Spell07(HUDManager.GetInstance.ActionTriggerGroup[(int)ActionTrigger.TriggerType.SubTriggerLeft]);
         SecondaryActionEventGroup = Spell03(HUDManager.GetInstance.ActionTriggerGroup[(int)ActionTrigger.TriggerType.SubTriggerRight]);
     }
 
@@ -98,14 +108,13 @@ public class Psyous : Champion {
                 .SetDirection()
                 .SetMaxColliderNumber((int)NormalAction_Info[(int)Info.max_collider])
                 .SetRemoveDelay(0.1f)
-                .SetArrowLeave(false)
                 .SetProjectileType((int)Projectile.ProjectileType.Point)
                 .SetCollideUnitAction(args =>
                 {
                     var proj = (Projectile)args.MorphObject;
                     foreach (var collidedUnit in proj.CollidedUnitGroup)
                     {
-                        collidedUnit.Hurt(proj.GetCaster(), (int)NormalAction_Info[(int)Info.damage], TextureType.Magic, proj.Direction,
+                        collidedUnit.Hurt(proj.Caster, (int)NormalAction_Info[(int)Info.damage], TextureType.Magic, proj.Direction,
                             (trigger, subject, forceDirection) =>
                             {
                                 subject.AddForce(forceDirection * 2.0f);
@@ -180,14 +189,13 @@ public class Psyous : Champion {
                 .SetDirection()
                 .SetMaxColliderNumber((int)NormalAction_Info[(int)Info.max_collider])
                 .SetRemoveDelay(0.1f)
-                .SetArrowLeave(false)
                 .SetProjectileType((int)Projectile.ProjectileType.Point)
                 .SetCollideUnitAction(args =>
                 {
                     var proj = (Projectile)args.MorphObject;
                     foreach (var collidedUnit in proj.CollidedUnitGroup)
                     {
-                        collidedUnit.Hurt(proj.GetCaster(), (int)NormalAction_Info[(int)Info.damage], TextureType.Magic, proj.Direction,
+                        collidedUnit.Hurt(proj.Caster, (int)NormalAction_Info[(int)Info.damage], TextureType.Magic, proj.Direction,
                             (trigger, subject, forceDirection) =>
                             {
                                 subject.AddForce(forceDirection * 2.0f);
@@ -262,14 +270,13 @@ public class Psyous : Champion {
                 .SetDirection()
                 .SetMaxColliderNumber((int)NormalAction_Info[(int)Info.max_collider])
                 .SetRemoveDelay(0.1f)
-                .SetArrowLeave(false)
                 .SetProjectileType((int)Projectile.ProjectileType.Point)
                 .SetCollideUnitAction(args =>
                 {
                     var proj = (Projectile)args.MorphObject;
                     foreach (var collidedUnit in proj.CollidedUnitGroup)
                     {
-                        collidedUnit.Hurt(proj.GetCaster(), (int)NormalAction_Info[(int)Info.damage], TextureType.Magic, proj.Direction,
+                        collidedUnit.Hurt(proj.Caster, (int)NormalAction_Info[(int)Info.damage], TextureType.Magic, proj.Direction,
                             (trigger, subject, forceDirection) =>
                             {
                                 subject.AddForce(forceDirection * 2.0f);
@@ -373,15 +380,14 @@ public class Psyous : Champion {
                 .SetDirection()
                 .SetMaxColliderNumber((int)FireBall_Info[(int)Info.max_collider])
                 .SetRemoveDelay(5.0f)
-                .SetArrowLeave(false)
-                .SetProjectileType((int)Projectile.ProjectileType.Box)
+                .SetProjectileType(Projectile.ProjectileType.Box)
                 .SetColliderBox(FireBall_Range)
                 .SetCollideUnitAction(args =>
                 {
                     var proj = (Projectile)args.MorphObject;
                     foreach (var collidedUnit in proj.CollidedUnitGroup)
                     {
-                        collidedUnit.Hurt(proj.GetCaster(), (int)FireBall_Info[(int)Info.damage], TextureType.Magic, proj.Direction,
+                        collidedUnit.Hurt(proj.Caster, (int)FireBall_Info[(int)Info.damage], TextureType.Magic, proj.Direction,
                             (trigger, subject, forceDirection) =>
                             {
                                 subject.AddForce(forceDirection * 10.0f);
@@ -460,15 +466,14 @@ public class Psyous : Champion {
             ProjectileManager.GetInstance.CreateProjectile(ProjectileManager.Type.PsyousForceHammer, lChampion, ForceHammer_Info[(int)Info.life_time], triggerPosition)
                 .SetMaxColliderNumber((int)ForceHammer_Info[(int)Info.max_collider])
                 .SetRemoveDelay(5.0f)
-                .SetArrowLeave(false)
-                .SetProjectileType((int)Projectile.ProjectileType.Sphere)
+                .SetProjectileType(Projectile.ProjectileType.Sphere)
                 .SetColliderBox(ForceHammer_Range)
                 .SetCollideUnitAction(args =>
                 {
                     var proj = (Projectile)args.MorphObject;
                     foreach (var collidedUnit in proj.CollidedUnitGroup)
                     {
-                        collidedUnit.Hurt(proj.GetCaster(), (int)ForceHammer_Info[(int)Info.damage], TextureType.Magic, proj.Direction,
+                        collidedUnit.Hurt(proj.Caster, (int)ForceHammer_Info[(int)Info.damage], TextureType.Magic, proj.Direction,
                             (trigger, subject, forceDirection) =>
                             {
                                 subject.AddForce(forceDirection * 2.0f);
@@ -566,8 +571,7 @@ public class Psyous : Champion {
                         .SetVelocity(direction * MagmaBall_Info[(int)Info.speed])
                         .SetDirection()
                         .SetMaxColliderNumber((int)MagmaBall_Info[(int)Info.max_collider])
-                        .SetArrowLeave(false)
-                        .SetProjectileType((int)Projectile.ProjectileType.Box)
+                        .SetProjectileType(Projectile.ProjectileType.Box)
                         .SetColliderBox(MagmaBall_Range)
                         .SetNumberOfHit(15)
                         .SetCollideUnitAction(args =>
@@ -575,7 +579,7 @@ public class Psyous : Champion {
                             var subProj = (Projectile)args.MorphObject;
                             foreach (var collidedUnit in subProj.CollidedUnitGroup)
                             {
-                                collidedUnit.Hurt(subProj.GetCaster(), (int)MagmaBall_Info[(int)Info.damage], TextureType.Heavy, subProj.Direction,
+                                collidedUnit.Hurt(subProj.Caster, (int)MagmaBall_Info[(int)Info.damage], TextureType.Heavy, subProj.Direction,
                                     (trigger, subject, forceDirection) =>
                                     {
                                         subject.AddForce(forceDirection * 6.0f);
@@ -651,18 +655,19 @@ public class Psyous : Champion {
                 lChampion.AttachPoint[(int)AttachPointType.LeftHandIndex1].position
                 : other.Candidate._Transform.position;
 
-            ProjectileManager.GetInstance.CreateProjectile(ProjectileManager.Type.PsyousFireBall, lChampion, ForceHammer_Info[(int)Info.life_time], triggerPosition)
-                .SetMaxColliderNumber((int)ForceHammer_Info[(int)Info.max_collider])
-                .SetRemoveDelay(5.0f)
-                .SetArrowLeave(false)
-                .SetProjectileType((int)Projectile.ProjectileType.Sphere)
+            ProjectileManager.GetInstance.CreateProjectile(ProjectileManager.Type.PsyousMagmaBall, lChampion, FireRain_Info[(int)Info.life_time], triggerPosition)
+                .SetMaxColliderNumber((int)FireRain_Info[(int)Info.max_collider])
+                .SetRemoveDelay(3.0f)
+                .SetProjectileType(Projectile.ProjectileType.Sphere)
                 .SetColliderBox(FireRain_Range)
-                .SetCollideUnitAction(args =>
-                {
+                .SetNumberOfHit(3)
+                .SetOnHeartBeatTension(3)
+                .SetIgnoreUnit(true)
+                .SetOnHeartBeatAction(args => {
                     var proj = (Projectile)args.MorphObject;
                     foreach (var collidedUnit in proj.CollidedUnitGroup)
                     {
-                        collidedUnit.Hurt(proj.GetCaster(), (int)ForceHammer_Info[(int)Info.damage], TextureType.Magic, proj.Direction,
+                        collidedUnit.Hurt(proj.Caster, (int)FireRain_Info[(int)Info.damage], TextureType.Magic, proj.Direction,
                             (trigger, subject, forceDirection) =>
                             {
                                 subject.AddForce(forceDirection * 2.0f);
@@ -670,7 +675,9 @@ public class Psyous : Champion {
                     }
                     proj.Remove();
                 })
-                .SetActive(true);
+                .SetActive(true)
+                .SetActiveHeartBeat(true);
+            
 
             lChampion.ResetSpellColliderActive();
         };
@@ -686,8 +693,329 @@ public class Psyous : Champion {
 
         return eventGroup;
     } // Fire_Rain
+    //TODO vfx
+    private Action<CustomEventArgs.CommomActionArgs>[] Spell05(ActionTrigger pTargetTrigger)
+    {
+        #region <Spell05/Methods/Init>
 
+        var eventGroup = new Action<CustomEventArgs.CommomActionArgs>[(int)EventInfo.Count];
 
+        #endregion
+
+        #region <Spell05/Methods/Clicked>
+
+        eventGroup[(int)EventInfo.Clicked] = other =>
+        {
+            pTargetTrigger.Processtype = ActionTrigger.ProcessType.Simple;
+            pTargetTrigger.Countertype = ActionTrigger.CounterType.TimeLerp;
+            pTargetTrigger.UpdateCooldown(1, resettable: true);
+        };
+
+        #endregion
+
+        #region <Spell05/Methods/Birth>
+        eventGroup[(int)EventInfo.Birth] = other =>
+        {
+            var lChampion = (Champion)other.Caster;
+            lChampion.UpdateTension();
+            lChampion.UnitBoneAnimator.SetCast("Spell", 1, lChampion.CastSpeed);
+            SoundManager.GetInstance
+                .CastSfx(SoundManager.AudioMixerType.VOICE, lChampion.ChampionType, K514SfxStorage.ActivityType.Serifu).SetTrigger();
+        };
+        #endregion
+
+        #region <Spell05/Methods/Enter>
+        eventGroup[(int)EventInfo.Enter] = other =>
+        {
+
+        };
+        #endregion
+
+        #region <Spell05/Methods/Exit>
+        eventGroup[(int)EventInfo.Exit] = (other) =>
+        {
+            var lChampion = (Champion)other.Caster;
+            var triggerPosition = lChampion._Transform.position + (lChampion._Transform.forward * Blink_Range);
+
+            RaycastHit hit;
+            Physics.Raycast(triggerPosition + new Vector3(0, 5f ,0), -_Transform.up,out hit);
+            _Transform.position = hit.point;
+            
+            lChampion.ResetSpellColliderActive();
+        };
+        #endregion
+
+        #region <Spell05/Methods/Terminate>
+        eventGroup[(int)EventInfo.Terminate] = (other) =>
+        {
+            var lChampion = (Champion)other.Caster;
+            lChampion.ResetFromCast();
+        };
+        #endregion
+
+        return eventGroup;
+    } // Blink
+    //TODO vfx
+    private Action<CustomEventArgs.CommomActionArgs>[] Spell06(ActionTrigger pTargetTrigger)
+    {
+        #region <Spell06/Methods/Init>
+
+        var eventGroup = new Action<CustomEventArgs.CommomActionArgs>[(int)EventInfo.Count];
+
+        #endregion
+
+        #region <Spell06/Methods/Clicked>
+
+        eventGroup[(int)EventInfo.Clicked] = other =>
+        {
+            pTargetTrigger.Processtype = ActionTrigger.ProcessType.Simple;
+            pTargetTrigger.Countertype = ActionTrigger.CounterType.TimeLerp;
+            pTargetTrigger.UpdateCooldown(1, resettable: true);
+        };
+
+        #endregion
+
+        #region <Spell06/Methods/Birth>
+        eventGroup[(int)EventInfo.Birth] = other =>
+        {
+            var lChampion = (Champion)other.Caster;
+            lChampion.UpdateTension();
+            lChampion.UnitBoneAnimator.SetCast("Spell", 0, lChampion.CastSpeed);
+            SoundManager.GetInstance
+                .CastSfx(SoundManager.AudioMixerType.VOICE, lChampion.ChampionType, K514SfxStorage.ActivityType.Serifu).SetTrigger();
+        };
+        #endregion
+
+        #region <Spell06/Methods/Enter>
+        eventGroup[(int)EventInfo.Enter] = other =>
+        {
+
+        };
+        #endregion
+
+        #region <Spell06/Methods/Exit>
+        eventGroup[(int)EventInfo.Exit] = (other) =>
+        {
+            var lChampion = (Champion)other.Caster;
+            var triggerPosition = lChampion._Transform.position;
+
+            var enemyIterater = Filter.GetTagGroupInRadiusCompareToTag("Enemy", Binding_Range, FilterCheckedObjectArray);
+
+            while (enemyIterater > 0)
+            {
+                Enemy candidate = (Enemy)FilterCheckedObjectArray[--enemyIterater];
+
+                candidate.Hurt(lChampion, 0, TextureType.Magic, Vector3.zero);
+
+                candidate.AddCrowdControl(new CrowdControl(candidate, CrowdControl.CrowdControlType.Stun, "Stun", 5, true)
+                    .SetAction(CrowdControl.EventType.OnBirth,
+                               new CustomEventArgs.CrowdControlArgs()
+                                .SetCandidate(candidate)
+                                .SetCaster(lChampion),
+                               (args) =>
+                               {
+                                   args.Candidate.UnitBoneAnimator.UnityAnimator.speed = .0f;
+                                   args.Candidate.ResetSpellColliderActive();
+                               }
+                    )
+                    .SetAction(CrowdControl.EventType.OnHeartBeat,
+                                new CustomEventArgs.CrowdControlArgs()
+                                    .SetCaster(lChampion)
+                                    .SetCandidate(candidate),
+                                (args) =>
+                                {
+                                    args.Candidate.Hurt(lChampion, 1, TextureType.Magic, Vector3.zero);
+                                }
+                    )
+                    .SetAction(CrowdControl.EventType.OnTerminate,
+                                new CustomEventArgs.CrowdControlArgs()
+                                    .SetCaster(lChampion)
+                                    .SetCandidate(candidate),
+                                (args) =>
+                                {
+                                    args.Candidate.UnitBoneAnimator.UnityAnimator.speed = 1.0f;
+                                }
+                    )
+                    .SetOption(CrowdControl.Option.OverrideAbsolute, true));
+            }
+
+            lChampion.ResetSpellColliderActive();
+        };
+        #endregion
+
+        #region <Spell06/Methods/Terminate>
+        eventGroup[(int)EventInfo.Terminate] = (other) =>
+        {
+            var lChampion = (Champion)other.Caster;
+            lChampion.ResetFromCast();
+        };
+        #endregion
+
+        return eventGroup;
+    } // Binding
+    //TODO vfx
+    private Action<CustomEventArgs.CommomActionArgs>[] Spell07(ActionTrigger pTargetTrigger)
+    {
+        #region <Spell07/Methods/Init>
+
+        var eventGroup = new Action<CustomEventArgs.CommomActionArgs>[(int)EventInfo.Count];
+
+        #endregion
+
+        #region <Spell07/Methods/Clicked>
+
+        eventGroup[(int)EventInfo.Clicked] = other =>
+        {
+            pTargetTrigger.Processtype = ActionTrigger.ProcessType.Simple;
+            pTargetTrigger.Countertype = ActionTrigger.CounterType.TimeLerp;
+            pTargetTrigger.UpdateCooldown(1, resettable: true);
+        };
+
+        #endregion
+
+        #region <Spell07/Methods/Birth>
+        eventGroup[(int)EventInfo.Birth] = other =>
+        {
+            var lChampion = (Champion)other.Caster;
+            lChampion.UpdateTension();
+            lChampion.SetCurrentEventState(other.SetCandidate(lChampion.DetectAndChaseEnemyInRange(7.5f, 0.0f, .0f)));
+            if (other.Candidate != null)
+            {
+                lChampion.UnitBoneAnimator.SetCast("Spell", 0, lChampion.CastSpeed);
+                SoundManager.GetInstance
+                    .CastSfx(SoundManager.AudioMixerType.VOICE, lChampion.ChampionType, K514SfxStorage.ActivityType.Serifu).SetTrigger();
+            }
+                
+        };
+        #endregion
+
+        #region <Spell07/Methods/Enter>
+        eventGroup[(int)EventInfo.Enter] = other =>
+        {
+
+        };
+        #endregion
+
+        #region <Spell07/Methods/Exit>
+        eventGroup[(int)EventInfo.Exit] = (other) =>
+        {
+            var lChampion = (Champion)other.Caster;
+            var target = (Enemy)other.Candidate;
+            if (target == null) return;
+            if (!isMagicHandGrab)
+            {
+                var triggerPosition = target._Transform.position;
+                var grabPosition = lChampion._Transform.position - lChampion._Transform.forward + lChampion._Transform.right + lChampion._Transform.up;
+
+                var grabVector = grabPosition - triggerPosition;
+
+                target.Hurt(lChampion, 0, TextureType.Magic, Vector3.zero);
+                target.AddCrowdControl(new CrowdControl(target, CrowdControl.CrowdControlType.Stun, "Stun", 15, true)
+                    .SetAction(CrowdControl.EventType.OnBirth,
+                                new CustomEventArgs.CrowdControlArgs()
+                                .SetCandidate(target)
+                                .SetCaster(lChampion),
+                                (args) =>
+                                {
+                                    args.Candidate.UnitBoneAnimator.UnityAnimator.speed = .0f;
+                                    args.Candidate.ResetSpellColliderActive();
+                                }
+                    )
+                    .SetAction(CrowdControl.EventType.OnTerminate,
+                                new CustomEventArgs.CrowdControlArgs()
+                                    .SetCaster(lChampion)
+                                    .SetCandidate(target),
+                                (args) =>
+                                {
+                                    args.Candidate.UnitBoneAnimator.UnityAnimator.speed = 1.0f;
+                                }
+                ));
+                var a = Time.fixedTime;
+                ProjectileManager.GetInstance.CreateProjectile(ProjectileManager.Type.HuntressArrowBlack, lChampion, 0.2f, triggerPosition)
+                    .SetVelocity(grabVector * 5)
+                    .SetProjectileType(Projectile.ProjectileType.Point)
+                    .SetDirection()
+                    .SetIgnoreUnit(true)
+                    .SetIgnoreObstacle(true)
+                    .SetActive(true)
+                    .SetExpiredAction(args =>
+                    {
+                        target.gameObject.tag = "Projectile";
+                        target.gameObject.layer = 12;
+                        grabedUnit = ProjectileManager.GetInstance.CreateProjectile(ProjectileManager.Type.HuntressArrowBlack, lChampion, (int)MagicHand_Info[(int)Info.life_time], grabPosition)
+                            .SetProjectileType(Projectile.ProjectileType.Box)
+                            .SetMaxColliderNumber(10)
+                            .SetColliderBox(MagicHand_Range)
+                            .SetCollideUnitAction(collided => {
+                                var proj = (Projectile)collided.MorphObject;
+                                foreach (var collidedUnit in proj.CollidedUnitGroup)
+                                {
+                                    collidedUnit.Hurt(lChampion, (int)MagicHand_Info[(int)Info.damage], TextureType.Heavy, proj.Velocity.normalized,
+                                    (caster, candidate, forceVecter) =>
+                                    {
+                                        candidate.AddForce(forceVecter * 2.0f);
+                                    });
+                                    target.Hurt(lChampion, (int)MagicHand_Info[(int)Info.damage], TextureType.Heavy, Vector3.zero);
+                                    if(target.Hp <= 0)
+                                    {
+                                        target.gameObject.tag = "Enemy";
+                                        target.gameObject.layer = 11;
+                                        proj.Remove();
+                                        target.CrowdControlGroup.Clear();
+                                        isMagicHandGrab = false;
+                                    }
+                                }
+                            })
+                            .SetIgnoreObstacle(true)
+                            .SetExpiredAction(expired => {
+                                Debug.Log(Time.fixedTime-a);
+                                target.gameObject.tag = "Enemy";
+                                target.gameObject.layer = 11;
+                                target.CrowdControlGroup.Clear();
+                                isMagicHandGrab = false;
+                            })
+                            .SetActive(true);
+                        
+                    });
+
+                //merge후 fixedupdate 기반으로 따라다니게만듬
+                target._Transform.position = grabPosition;
+                isMagicHandGrab = true;
+            }
+            else
+            {
+                var triggerPosition = grabedUnit._Transform.position;
+                var targetTransform = target._Transform;
+                
+                grabedUnit
+                    .SetEnqueuePoint(triggerPosition)
+                    .SetEnqueuePoint(triggerPosition + targetTransform.right * 5)
+                    .SetEnqueuePoint(targetTransform.position + targetTransform.right * 5)
+                    .SetEnqueuePoint(targetTransform.position)
+                    .SetEnqueuePoint(targetTransform.position)
+                    .SetEnqueuePoint(targetTransform.position - targetTransform.right * 5)
+                    .SetEnqueuePoint(triggerPosition - targetTransform.right * 5)
+                    .SetEnqueuePoint(triggerPosition)
+                    .SetBezier(4, 0.3f)
+                    .SetBezier(4, 0.3f)
+                    .SetActive(true);
+                
+                grabedUnit.ExCollidedUnitGroup.Clear();
+            }
+            lChampion.ResetSpellColliderActive();
+        };
+        #endregion
+
+        #region <Spell07/Methods/Terminate>
+        eventGroup[(int)EventInfo.Terminate] = (other) =>
+        {
+            var lChampion = (Champion)other.Caster;
+            lChampion.ResetFromCast();
+        };
+        #endregion
+
+        return eventGroup;
+    } // Magic Hand
     #endregion </Spell/Methods>
 
 }

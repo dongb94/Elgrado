@@ -249,8 +249,13 @@ public abstract class Champion : Unit
     
     protected virtual Enemy DetectEnemyInRange(float radius)
     {        
-        var focusEnemyGroup = Filter.GetEnemyGroupInRadius(radius).ToArray();
-        return focusEnemyGroup.Length > 0 ? focusEnemyGroup.OrderBy(enemy => enemy.DistanceTowardPlayer).ElementAt(0) : null;
+        var focusEnemyGroupNumber = Filter.GetTagGroupInRadiusCompareToTag("Enemy",radius,FilterCheckedObjectArray);
+        if (focusEnemyGroupNumber > 0)
+        {
+            PlayerManager.GetInstance.SortObjectAgainstToChampionByDistance(FilterCheckedObjectArray,focusEnemyGroupNumber);
+            return (Enemy) FilterCheckedObjectArray[0];
+        }
+        return null;
     }
 
     public void SetCurrentEventState(CustomEventArgs.CommomActionArgs State)

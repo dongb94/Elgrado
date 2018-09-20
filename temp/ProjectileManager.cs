@@ -6,7 +6,7 @@ public class ProjectileManager : Singleton<ProjectileManager>
 
     #region <Fields>
 
-    [SerializeField] private List<GameObject> _projectileObjectGroup;
+    [SerializeField] private List<FormattedMonoBehaviour> _projectileObjectGroup;
     private Transform _transform;
 
     #endregion </Fields>
@@ -20,11 +20,11 @@ public class ProjectileManager : Singleton<ProjectileManager>
         HuntressArrowTrailed,
         HuntressArrowCylinder,
         HuntressArrowBlack,
+        HuntressArrowWire,
         PsyousMagicMissile,
         PsyousFireBall,
         PsyousMagmaBall,
         PsyousForceHammer,
-
         Count
     }
 
