@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.AI;
-using UnityStandardAssets.Effects;
-
 using Random = UnityEngine.Random;
 
 [RequireComponent(typeof(Transform))]
@@ -17,7 +15,7 @@ public abstract class Unit : FormattedMonoBehaviour, IBoneAnimatorCallback
 
     protected const float UpdateRunningTime = 0.5f;
     private const float ForceImpactThreshold = 0.04f;
-    private const float GravityForce = 9.8f;
+    private const float GravityForce = .49f;
     private const float EnergyConsume = 5.0f;
     private const int DefaultTension = 5;
 
@@ -25,48 +23,68 @@ public abstract class Unit : FormattedMonoBehaviour, IBoneAnimatorCallback
     
     #region <Fields>
 
-    // Serialized Field
-    public int MaxHp;
-    public int Power;
-    public int DecayTime;
-    public float AttackRange;
+    /* Enum */
+    public TextureType WeaponType;
+    public TextureType ArmorType;
+    public UnitState State { get; protected set; }
+
+    /* status : hp, mass */
+    [Range(1, 50000)] public int MaximumHealthPoint;    
+    public int CurrentHealthPoint { get; protected set; }
+    [Range(.01f, float.MaxValue)] [SerializeField] protected float Mass; 
+    
+    /* Move Speed */
     public float MovementSpeed;
     public float RotateSpeed;
-    public ParticleSystem[] ParticleSetWhenDecay;
-    public WeaponType Weapontype;
-    public TextureType Armortype;
-    [SerializeField] public Transform[] AttachPoint;
-    [SerializeField] protected UnitSpellCollider[] UnitSpellColliderGroup;    
-    [Range(.01f, float.MaxValue)] [SerializeField] protected float Mass;
-
-    // NonSerialized Field
-    protected CharacterController Controller;
+    public float Speed { get; private set; }
+    public Vector3 ForceVector { get; protected set; }
     protected float RunningTime;
     protected float RunningPower;
     protected float AngleToDestination;
-    protected int DecayTimeLeft;
-    protected int TriggerId;
+    private float _aeroAccumulator;
+    
+    /* Animation Speed */
     private float _castSpeed;
+    public float CastSpeed
+    {
+        get { return _castSpeed;}
+        set
+        {            
+            _castSpeed = value;
+            UnitBoneAnimator.UnityAnimator.SetFloat("CastSpeed", value);
+        }
+    }
     
-    // Deprecated : Trail Generator
-    protected K514TrailGenerator[] UnitSpellTrailEffectGroup;    
+    /* Time unit relate*/
+    public int Tension { get; protected set; }
+    public int DecayTime;    
+    protected int DecayTimeLeft;
+    public ParticleSystem[] ParticleSetWhenDecay;
 
-    // Dynamic Material Property
-    [NonSerialized]public K514MaterialApplier MaterialApplier;
-    
-    // Unit index Effect Object
+    /* Unit Index circle */
     private K514UnitFocusCircle _mFocusCircle;
     
     /* NavMesh Agent */
-    private bool IsNavAgent;
-    
-    // Deprecated : Unit Control Trigger
-    [NonSerialized] public int NotMoveTrigger, NotRotateTrigger, NotReleaseTension;
+    protected NavMeshAgent _navMeshAgent;
+        
+    /* Dynamic Material Property */
+    [NonSerialized]public K514MaterialApplier MaterialApplier;
 
-    // Animation Sequence Property    
+    /* Animation Sequence Property */
     [NonSerialized] public bool AnimationSequenceWaitingKey;
     protected List<KeyValuePair<string, int>> innerAnimationSequenceSet;
+    
+    /* CC */
+    public List<CrowdControl> CrowdControlGroup { get; protected set; }
+    
+    /* Deprecated : Trail Generator */
+    protected K514TrailGenerator[] UnitSpellTrailEffectGroup;    
 
+    /* etcetera */
+    [SerializeField] public Transform[] AttachPoint;
+    protected CharacterController Controller;
+    public HumanBoneAnimator UnitBoneAnimator { get; private set; }
+    
     #endregion </Fields>
     
     #region <Enums>
@@ -87,15 +105,16 @@ public abstract class Unit : FormattedMonoBehaviour, IBoneAnimatorCallback
         Spine1,
         Motion,
         Count,
+        Random
     }
 
     // @K514 : need to environment sfx e.g. drawaing sword, trigging bow
-    public enum WeaponType
-    {
-        Blade,
-        Bow,
-        Count
-    }
+//    public enum ArmsType
+//    {
+//        Blade,
+//        Bow,
+//        Count
+//    }
     
     // @K514 : attacker defender interact relevant 
     public enum TextureType
@@ -120,28 +139,19 @@ public abstract class Unit : FormattedMonoBehaviour, IBoneAnimatorCallback
         UnitBoneAnimator = GetComponent<HumanBoneAnimator>();
         Controller = GetComponent<CharacterController>();
         UnitSpellTrailEffectGroup = GetComponents<K514TrailGenerator>();
-        MaterialApplier = gameObject.AddComponent<K514MaterialApplier>();
+        MaterialApplier = GetComponent<K514MaterialApplier>();
         CrowdControlGroup = new List<CrowdControl>();
+        _navMeshAgent  = GetComponent<NavMeshAgent>();
+
         ForceVector = Vector3.zero;
-        TriggerId = 0;
+        CurrentHealthPoint = MaximumHealthPoint;
         Mass = 1f / Mass;
         CastSpeed = 1.0f;
-    }
-
-    private void OnEnable()
-    {
-        NavMeshAgent agent = GetComponent<NavMeshAgent>();
-        if (agent != null)
-            IsNavAgent = true;
-        else
-            IsNavAgent = false;
-        ResetSpellColliderActive();
     }
 
     protected virtual void OnDisable()
     {
         if (State != UnitState.Dead) MaterialApplier.RevertTrigger();
-        ResetSpellColliderActive();
     }
 
     protected virtual void FixedUpdate()
@@ -155,33 +165,27 @@ public abstract class Unit : FormattedMonoBehaviour, IBoneAnimatorCallback
 
     #region <Callbacks>
 
-    /// <summary>
-    /// Count for the left time for the death.
-    /// </summary>
-    /// <see cref="RhythmManager"/>
     public virtual void OnHeartBeat()
-    {       
-        if(NotReleaseTension == 0) Tension = Math.Max(0, Tension - 1);
+    {
+        Tension = Math.Max(0, Tension - 1);
 
         // <Carey>: Exception Handling for a node removal issue with this top-down iterator.
         for (var crowdControlIndex = CrowdControlGroup.Count - 1; crowdControlIndex >= 0; --crowdControlIndex)
             CrowdControlGroup[crowdControlIndex].OnHeartBeat();
-        
-        if (State == UnitState.Dead)
-            DecayTimeLeft = Math.Max(0, DecayTimeLeft - 1);
 
-        if (DecayTimeLeft <= 0)
+        if (State == UnitState.Dead)
         {
-            for (var i = 0; i < ParticleSetWhenDecay.Length; i++)
-            {
-                ParticleSetWhenDecay[i].loop = true;
-            }
+            DecayTimeLeft = Math.Max(0, DecayTimeLeft - 1);
+            // <K514>: Revert Particle system to Default Setting
+            RevertLoopOptionOfAttachedParticleSet(false);
         }
     }
     
     protected virtual void OnDeath()
-    {
-        ResetSpellColliderActive();
+    {        
+        // <K514>: disable collider not to block other unit when died
+        Controller.enabled = false;
+        if(_navMeshAgent != null) _navMeshAgent.enabled = false;
         
         // <Carey>: Exception Handling for a node removal issue with this top-down iterator.
         for (var crowdControlIndex = CrowdControlGroup.Count - 1; crowdControlIndex >= 0; --crowdControlIndex)
@@ -189,40 +193,49 @@ public abstract class Unit : FormattedMonoBehaviour, IBoneAnimatorCallback
         CrowdControlGroup.Clear();
         MaterialApplier.RevertTrigger();
         MaterialApplier.SetDissolveMaterial(K514MaterialStorage.MAT_STATE.kBurned,3f);
-
-        for (var i = 0; i < ParticleSetWhenDecay.Length; i++)
-        {
-            ParticleSetWhenDecay[i].loop = false;
-        }
-
+        
         State = UnitState.Dead;
-        UnitBoneAnimator.SetTrigger(BoneAnimator.AnimationState.Dead);
-    }
-    
-    public virtual void OnExitedEffectPeriod(int triggerId)
-    {
-        ResetSpellColliderActive();  
-    }
+        UnitBoneAnimator.SetTrigger(BoneAnimator.AnimationState.Dead);    
+        
+        // <K514>: Dissable Particle system to Default Setting
+        RevertLoopOptionOfAttachedParticleSet(true);
+    }    
 
-    public void OnExitedHitMotion()
+    public void OnHitMotionExit()
     {
         MaterialApplier.RevertTrigger();
     }
 
-    public abstract void OnObjectTriggerEnterUnit(Unit collidedUnit);
-    public abstract void OnObjectTriggerExitUnit(Unit collidedUnit);
-    public abstract void OnExitedCastAnimation();
     public abstract void OnIdleRelax();
-    public abstract void OnEnteredEffectPeriod(int triggerId);
+    
+    /// <summary>
+    /// Callback from <see cref="Animator"/> and <seealso cref="Animation"/>.
+    /// </summary>
+    public abstract void OnCastAnimationStandby();
+    
+    /// <summary>
+    /// Callback from <see cref="Animator"/> and <seealso cref="Animation"/>.
+    /// </summary>
+    public abstract void OnCastAnimationCue();
+    
+    /// <summary>
+    /// Callback from <see cref="Animator"/> and <seealso cref="Animation"/>.
+    /// </summary>
+    public abstract void OnCastAnimationExit();
+        
+    public abstract void OnCastAnimationEnd();
+        
+    public abstract void OnCastAnimationCleanUp();
 
     public override void OnCreated()
     {
-        Hp = MaxHp;
+        CurrentHealthPoint = MaximumHealthPoint;
         State = UnitState.Lives;
         DecayTimeLeft = DecayTime;
         Tension = 0;
         CrowdControlGroup.Clear();
         MaterialApplier.RevertTrigger();
+        Controller.enabled = true;
     }
 
     public override void OnRemoved()
@@ -232,34 +245,6 @@ public abstract class Unit : FormattedMonoBehaviour, IBoneAnimatorCallback
     #endregion </Callbacks>  
 
     #region <Properties>
-        
-    public Vector3 ForceVector { get; protected set; }      
-    public UnitState State { get; protected set; }
-    public List<CrowdControl> CrowdControlGroup { get; protected set; }
-    public float Speed { get; private set; }
-    public int Tension { get; protected set; }
-    public int Hp { get; protected set; }
-    public HumanBoneAnimator UnitBoneAnimator { get; private set; }
-    public UnitSpellCollider[] GetUnitSpellColliderGroup { get { return UnitSpellColliderGroup; } }
-    
-    public float CastSpeed
-    {
-        get { return _castSpeed;}
-        set
-        {            
-            _castSpeed = value;
-            UnitBoneAnimator.UnityAnimator.SetFloat("CastSpeed", value);
-        }
-    }
-    
-    public List<KeyValuePair<string, int>> AnimationSequenceSet
-    {
-        get
-        {
-            if(innerAnimationSequenceSet == null) innerAnimationSequenceSet = new List<KeyValuePair<string, int>>();
-            return innerAnimationSequenceSet;
-        }
-    }
     
     public Vector3 GetUnitPosition
     {
@@ -277,6 +262,15 @@ public abstract class Unit : FormattedMonoBehaviour, IBoneAnimatorCallback
         }
     }
     
+    public List<KeyValuePair<string, int>> AnimationSequenceSet
+    {
+        get
+        {
+            if(innerAnimationSequenceSet == null) innerAnimationSequenceSet = new List<KeyValuePair<string, int>>();
+            return innerAnimationSequenceSet;
+        }
+    }
+    
     #endregion </Properties>
     
     #region <Methods>
@@ -284,9 +278,7 @@ public abstract class Unit : FormattedMonoBehaviour, IBoneAnimatorCallback
     public virtual void Move(Vector3 forceVector)
     {
         SetAngleToDestination(forceVector);
-                
         RunningTime = UpdateRunningTime;
-        RunningPower = forceVector.sqrMagnitude;
     }
     
     public void AddForce(Vector3 force)
@@ -295,17 +287,14 @@ public abstract class Unit : FormattedMonoBehaviour, IBoneAnimatorCallback
     }
     
     public virtual void Hurt(Unit caster, int damage, TextureType type, Vector3 forceDirection, 
-        Action<Unit, Unit, Vector3> action = null, bool isCancelCast = true)
+        Action<Unit, Unit, Vector3> action = null)
     {
-        if (State != UnitState.Lives) return;
-        
-        if (isCancelCast)
-            ResetSpellColliderActive();
+        if (State != UnitState.Lives) return;      
 
         // TODO<Carey>: if (Verifying Of The Condition Of Hurt)
         if (true)
         {
-            Hp -= damage;
+            CurrentHealthPoint -= damage;
             MaterialApplier.SetTrigger(K514MaterialStorage.MAT_STATE.kHitted);
             
             if (action == null)
@@ -349,7 +338,7 @@ public abstract class Unit : FormattedMonoBehaviour, IBoneAnimatorCallback
                 action(caster, this, forceDirection);
             }
             
-            if (Hp <= 0)
+            if (CurrentHealthPoint <= 0)
             {
                 OnDeath();
             }
@@ -370,14 +359,6 @@ public abstract class Unit : FormattedMonoBehaviour, IBoneAnimatorCallback
     {
         crowdControl.OnBirth();
     }
-
-    public virtual void ResetSpellColliderActive()
-    {
-        foreach (var unitSpellCollider in UnitSpellColliderGroup)
-        {
-            unitSpellCollider.enabled = false;
-        }
-    }        
     
     public void GenerateCircle(FormattedMonoBehaviour pCirclePrefab)
     {
@@ -405,6 +386,50 @@ public abstract class Unit : FormattedMonoBehaviour, IBoneAnimatorCallback
         return directionVector.normalized;
     }
 
+    public Vector3 GetNormDirectionCandidateRandomAttachPoint(Vector3 p_Center, Unit p_Opponent)
+    {
+        return (p_Opponent.AttachPoint[Random.Range(0,(int)AttachPointType.Count)].position - p_Center).normalized;
+    }
+    
+    public Vector3 GetNormDirectionCandidateRandomAttachPoint(Transform p_Center, Unit p_Opponent)
+    {
+        return GetNormDirectionCandidateRandomAttachPoint(p_Center.position,p_Opponent);
+    }
+    
+    public Vector3 GetNormDirectionCandidateRandomAttachPoint(AttachPointType p_Center, Unit p_Opponent)
+    {
+        return GetNormDirectionCandidateRandomAttachPoint(AttachPoint[(int)p_Center].position,p_Opponent);
+    }
+    
+    public Vector3 GetNormDirectionCandidateRandomAttachPoint(Unit p_Opponent)
+    {
+        return GetNormDirectionCandidateRandomAttachPoint(_Transform,p_Opponent);
+    }
+    
+    public Vector3 GetRandomAttachPosition()
+    {
+        var l_Result = AttachPoint[Random.Range(0, (int) AttachPointType.Count)];
+        return l_Result == null ? _Transform.position + Vector3.up * 1f : l_Result.position;
+    }
+    
+    public Transform GetRandomAttachTransform()
+    {
+        var l_Result = AttachPoint[Random.Range(0, (int) AttachPointType.Count)];
+        return l_Result == null ? _Transform  : l_Result;
+    }
+    
+    public void NavMeshMoveApply(Vector3 p_TargetPosition)
+    {
+        if (_navMeshAgent != null && !_navMeshAgent.enabled) return;
+        _navMeshAgent.SetDestination(p_TargetPosition);
+        Move(p_TargetPosition);
+    }
+    
+    public void NavMeshStop()
+    {
+        _navMeshAgent.ResetPath();
+    }
+
     public void UpdateTension()
     {
         Tension = DefaultTension;
@@ -412,13 +437,18 @@ public abstract class Unit : FormattedMonoBehaviour, IBoneAnimatorCallback
 
     private void UpdateMove()
     {
-        Speed = Time.fixedDeltaTime * RunningPower * RunningTime * MovementSpeed;
+        Speed = Time.fixedDeltaTime * RunningTime * MovementSpeed;
         
         if (!Controller.isGrounded)
         {
             // <TODO:Carey> Reflect the gravity acceleration.
-            var gravityDirection = Vector3.down * GravityForce * Time.fixedDeltaTime;
+            _aeroAccumulator = Mathf.Min(5.0f, _aeroAccumulator + Time.fixedDeltaTime);
+            var gravityDirection = Vector3.down * GravityForce * _aeroAccumulator;
             Controller.Move(gravityDirection);
+        }
+        else
+        {
+            _aeroAccumulator = .0f;
         }
 
         if (!(RunningTime > Mathf.Epsilon) 
@@ -428,20 +458,17 @@ public abstract class Unit : FormattedMonoBehaviour, IBoneAnimatorCallback
         
         RunningTime -= Time.fixedDeltaTime;
 
-
-        if (IsNavAgent) return;
-
-        // Take care about the rotation of character.
-        if (NotRotateTrigger<1)
+        if (_navMeshAgent == null)
         {
+            // Take care about the rotation of character.
             var angle = Mathf.LerpAngle(_Transform.eulerAngles.y, AngleToDestination,
                 Time.fixedDeltaTime * RotateSpeed);
             _Transform.eulerAngles = Vector3.up * angle;
-        }
 
-        // Adjust the movement speed to forward.
-        var direction = _Transform.TransformDirection(Vector3.forward);
-        UnitMove(direction * Speed);
+            // Adjust the movement speed to forward.
+            var direction = _Transform.TransformDirection(Vector3.forward);
+            UnitMove(direction * Speed);
+        }
     }
 
     private void UpdateForce()
@@ -454,14 +481,30 @@ public abstract class Unit : FormattedMonoBehaviour, IBoneAnimatorCallback
 
     protected virtual void UnitMove(Vector3 forceVector)
     {
-        Controller.Move(forceVector);
-    }        
+        if (Controller.enabled)
+        {
+            Controller.Move(forceVector);
+        }
+        if (_navMeshAgent != null && _navMeshAgent.enabled)
+        {
+            _navMeshAgent.ResetPath();
+            _navMeshAgent.Move(forceVector);
+        }
+    }
+
+    private void RevertLoopOptionOfAttachedParticleSet(bool p_Flag)
+    {
+        for (var i = 0; i < ParticleSetWhenDecay.Length; i++)
+        {
+            ParticleSetWhenDecay[i].loop = p_Flag;
+        }
+    }
 
     #endregion </Methods>    
 
     #region <Coroutines>
     
-    protected Action<CustomEventArgs.CommomActionArgs> AnimationSequenceHandler = args =>
+    protected Action<CommomActionArgs> AnimationSequenceHandler = args =>
     {
         var lContent = ObjectManager.GetInstance.GetObject<K514PooledCoroutine>(
             ObjectManager.PoolTag.Coroutine,
@@ -490,7 +533,7 @@ public abstract class Unit : FormattedMonoBehaviour, IBoneAnimatorCallback
 
                 var unit = (Unit)ano.MorphObject;
                 var animationToPlay = unit.AnimationSequenceSet.ElementAt(0);
-                unit.UnitBoneAnimator.SetCast(animationToPlay.Key, animationToPlay.Value, unit.CastSpeed);
+                unit.UnitBoneAnimator.SetCast(animationToPlay.Key, animationToPlay.Value);
             })
             .SetAction(K514PooledCoroutine.ActionType.BusyWaitingTrigger,ano =>
             {
@@ -511,7 +554,7 @@ public abstract class Unit : FormattedMonoBehaviour, IBoneAnimatorCallback
     };
 
     #endregion
-
+    
     #region <CustomEditor>
 
     public string FindAttatchPoint()

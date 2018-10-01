@@ -19,6 +19,8 @@ public abstract class Enemy : Unit
     public bool IsCampUnit;
     public bool IsHadInitialAttackCooldown;
     public bool IsCanceledAttackWhenItHurt;
+    public int AttackPower;
+    public float AttackRange;
     public int AttackCooldown;
     public float FocusRadius;
     public float FocusReleaseRadius;
@@ -27,20 +29,18 @@ public abstract class Enemy : Unit
     public float DistanceTowardPlayer { get; private set; }
     public float DistanceTowardBase { get; private set; }
 
-    [NonSerialized] public Activity UnitActivity = Activity.Rest;
+    [NonSerialized] public Activity UnitActivity;
     [NonSerialized] public Vector3 CampingPosition;
     [NonSerialized] public int AttackCooldownLeft;    
         
     private FormattedMonoBehaviour _healthBar;
     private Quaternion _rotation;
     private UIEnemyStateView _uiEnemyStateView;
-    private NavMeshAgent _navMeshAgent;
 
     private float _ignoreFocusTime;
-    private float focusRadius;
 //    private Spawner _spawner;
     private bool _isFocused;
-
+    
     private Unit lastHurtingThisUnit;
     private Unit Focus
     {
@@ -48,7 +48,7 @@ public abstract class Enemy : Unit
         {
             if (lastHurtingThisUnit != null && lastHurtingThisUnit.activeSelf && lastHurtingThisUnit.State != UnitState.Dead) return lastHurtingThisUnit;
             lastHurtingThisUnit = null;
-            var filteredObjectNumber = Filter.GetTagGroupInRadiusCompareToTag("Player",focusRadius, FilterCheckedObjectArray,_Transform.position);
+            var filteredObjectNumber = Filter.GetTagGroupInRadiusCompareToTag("Player",FocusRadius, FilterCheckedObjectArray,_Transform.position);
             if (filteredObjectNumber == 0) return null;
             return (Unit)FilterCheckedObjectArray[0];
         }
@@ -79,11 +79,8 @@ public abstract class Enemy : Unit
 //        _uiEnemyStateView = GetComponent<UIEnemyStateView>();
 //        _spawner = GetComponentInParent<Spawner>();
         _ignoreFocusTime = .0f;
-        focusRadius = FocusRadius;
-        FocusRadius *= FocusRadius;
         FocusReleaseRadius *= FocusReleaseRadius;
         AttackRange *= AttackRange;
-        _navMeshAgent = GetComponent<NavMeshAgent>();
     }
 
     /// <summary>
@@ -117,22 +114,21 @@ public abstract class Enemy : Unit
         }
         
         if (UnitBoneAnimator.CurrentState != BoneAnimator.AnimationState.Move && UnitActivity != Activity.Returntocamp) return;
-        
+
         switch (UnitActivity)
         {
             case Activity.Hunt:
-                if(!IsInAttackRange)
-                    Move(_navMeshAgent.destination = Focus.transform.position);
+                if (!IsInAttackRange)
+                    NavMeshMoveApply(Focus.transform.position);
                 break;
             case Activity.Returntocamp:
-                Move(_navMeshAgent.destination = CampingPosition);
+                NavMeshMoveApply(CampingPosition);
                 break;
             case Activity.Rest:
                 break;
             default:
                 throw new ArgumentOutOfRangeException();
         }
-        
     }
 
     #endregion </Unity/Callbacks>    
@@ -141,7 +137,7 @@ public abstract class Enemy : Unit
     
     protected override void OnDeath()
     {
-        Destroy(_navMeshAgent);
+        _navMeshAgent.enabled = false;
         SoundManager.GetInstance.CastSfx(SoundManager.AudioMixerType.VOICE,EnemyType,K514SfxStorage.ActivityType.Dead).SetTrigger();
         base.OnDeath();
     }  
@@ -170,6 +166,7 @@ public abstract class Enemy : Unit
     public override void OnCreated()
     {
         base.OnCreated();
+        _navMeshAgent.enabled = true;
         lastHurtingThisUnit = null;
         _isFocused = false;
         _healthBar = null;
@@ -218,12 +215,13 @@ public abstract class Enemy : Unit
                 SwitchActivity(Activity.Hunt);
 
                 if(!IsInAttackRange)
-                    Move(_navMeshAgent.destination = Focus.transform.position);
+                    NavMeshMoveApply(Focus.transform.position);
 
                 /*
-                  SwitchActivity(Activity.Hunt);      
-                  Move(GetNormDirectionToMove(Focus));
-                  */
+                 * before code
+                 * 
+                Move(GetNormDirectionToMove(Focus));
+                */
             }
         }
         else
@@ -260,36 +258,34 @@ public abstract class Enemy : Unit
     
 
     public override void Hurt(Unit caster, int damage, TextureType type, Vector3 forceDirection, 
-        Action<Unit, Unit, Vector3> action = null, bool isCancelCast = true)
+        Action<Unit, Unit, Vector3> action = null)
     {                
-        base.Hurt(caster, damage, type, forceDirection, action, isCancelCast);
+        base.Hurt(caster, damage, type, forceDirection, action);                
 
         _navMeshAgent.enabled = false;
-
+        
         if (State == UnitState.Lives)
         {
             SoundManager.GetInstance.CastSfx(SoundManager.AudioMixerType.VOICE,EnemyType,K514SfxStorage.ActivityType.Dead).SetTrigger();
             UnitBoneAnimator.SetTrigger(BoneAnimator.AnimationState.Hit);
         }
-        
 
         // @Temp: when it attacked in out of range, it would be tracking on you until you're in dead.
         IsCampUnit = false;
-
-        lastHurtingThisUnit = caster;
         _isFocused = true;
+        lastHurtingThisUnit = caster;
         SwitchActivity(Activity.Hunt);
 
         if (State == UnitState.Dead)
         {
-            forceDirection *= (Math.Abs(Hp) + 1) * 3;
+            forceDirection *= (Math.Abs(CurrentHealthPoint) + 1) * 3;
             AddForce(forceDirection);
         }                
         
         if (_uiEnemyStateView != null)        
             _uiEnemyStateView.UpdateState();
                 
-        if (IsCanceledAttackWhenItHurt && isCancelCast)
+        if (IsCanceledAttackWhenItHurt)
             SetAttackCooldown(AttackCooldown);
     }
     
@@ -319,7 +315,6 @@ public abstract class Enemy : Unit
     /// <exception cref="ArgumentOutOfRangeException">Not expected parameter.</exception>
     private void SwitchActivity(Activity activity)
     {
-        
         if (UnitActivity == activity && State == UnitState.Lives) return;
                 
         switch (activity)
@@ -376,11 +371,7 @@ public abstract class Enemy : Unit
                 }
 
                 break;
-
-            default:
-                throw new ArgumentOutOfRangeException("activity", activity, null);
         }       
-        
         UnitActivity = activity;
     }
     

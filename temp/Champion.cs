@@ -1,47 +1,62 @@
 ﻿using System;
+using System.Collections;
+using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
-using UnityEngine.Analytics;
 
 public abstract class Champion : Unit
-{
+{        
 
+    #region <Consts>
+
+    protected static void DefaultReset(UnitEventArgs eventArgs)
+    {
+        var caster = (Champion) eventArgs.Caster;
+        caster.ResetFromCast();        
+    }
+    
+    #endregion </Consts>
+    
     #region <Fields>
 
-    public int MaxSp;
-    [NonSerialized] public int Sp;    
-    public Action<CustomEventArgs.CommomActionArgs>[] TriggerActionEvent;
-    public Action<CustomEventArgs.CommomActionArgs>[][] NormalActionsEventGroup { get; protected set; }
-    public Action<CustomEventArgs.CommomActionArgs>[] PrimaryActionEventGroup { get; protected set; }
-    public Action<CustomEventArgs.CommomActionArgs>[] SecondaryActionEventGroup { get; protected set; }
-    [NonSerialized]public int NormalActionSequence;
-    public bool HasLockedTransition { get; protected set; }
+    public List<List<Action<UnitEventArgs>[]>> ActionGroupRoot { get; private set; }
+    public Dictionary<List<Action<UnitEventArgs>[]>, ActionStatus> ActionStatusGroup { get; private set; }
+    public Dictionary<List<Action<UnitEventArgs>[]>, UnitEventArgs> ActionArgs { get; private set; }
+
+    public int CurrentActionPoint { get; private set; }
+    [SerializeField] private int _maximumActionPoint;
+
+    private List<Action<UnitEventArgs>[]> _currentActionGroup;
+    private ActionStatus _currentActionStatus;
+    private UnitEventArgs _currentActionArgs;
     
-    /*extend*/
-    [NonSerialized] public float FillAmount;
-    [NonSerialized] public K514SfxStorage.ChampionType ChampionType;
-
-    private CustomEventArgs.CommomActionArgs CurrentEventState;
-
     #endregion
 
     #region <Enums>
-
-    protected enum EventInfo
+    
+    public enum UnitEventType
     {
-        CancelCheck,
-        Clicked,
-        Birth,
-        Enter,
-        Collide,
+        Initialize,
+        SetTrigger,
+        
+        Begin,        
+        Standby,
+        Cue,
         Exit,
-        Terminate,
-        Released,
+        End,  
+        
+        CleanUp,
+        
+        OnHeartBeat,
+        OnFixedUpdate,
+        OnRelax,
 
+        TransitionOcuured,
+        
         Count
-    }
+    }   
 
-    #endregion
+    #endregion </Enums>
 
     #region <Unity/Callbacks>
 
@@ -50,86 +65,176 @@ public abstract class Champion : Unit
         base.Awake();
 
         Controller = GetComponent<CharacterController>();
-        Sp = MaxSp;
+        
+        ActionGroupRoot = new List<List<Action<UnitEventArgs>[]>>();
+        ActionStatusGroup = new Dictionary<List<Action<UnitEventArgs>[]>, ActionStatus>();
+        ActionArgs = new Dictionary<List<Action<UnitEventArgs>[]>, UnitEventArgs>();
+        
+        for (var actionButtonTriggerIndex = 0;
+            actionButtonTriggerIndex < (int) ActionButtonTrigger.Type.Count;
+            ++actionButtonTriggerIndex)
+        {
+            var lastCreatedActionGroup = new List<Action<UnitEventArgs>[]>();
+            
+            ActionGroupRoot.Add(lastCreatedActionGroup);
+            ActionStatusGroup.Add(lastCreatedActionGroup, new ActionStatus());
+            ActionArgs.Add(lastCreatedActionGroup, new UnitEventArgs());
+        }
+        
+        CurrentActionPoint = _maximumActionPoint;
     }
 
     protected void OnEnable()
-    {
-        HasLockedTransition = false;
-        NotMoveTrigger = NotRotateTrigger = NotReleaseTension = 0;
+    {                
         MaterialApplier.RevertTrigger();
         if (!HUDManager.GetInstance.JoystickController.IsEventHoldOn)
             RunningTime = .0f;
     }
 
+    protected override void FixedUpdate()
+    {
+        base.FixedUpdate();
+
+        if (CurrentAction != null && CurrentAction[(int) UnitEventType.OnFixedUpdate] != null)
+            CurrentAction[(int) UnitEventType.OnFixedUpdate](CurrentActionArgs);
+    }
+
     #endregion
 
     #region <Callbacks>
-
+    
     public override void OnIdleRelax()
     {
-        NormalActionSequence = 0;
+        if (CurrentAction != null)
+            CurrentAction[(int) UnitEventType.OnRelax](CurrentActionArgs);
     }
 
     protected override void OnDeath()
     {
-        Hp = MaxHp;
-        SoundManager.GetInstance
-            .CastSfx(SoundManager.AudioMixerType.VOICE, ChampionType, K514SfxStorage.ActivityType.Dead).SetTrigger();
-    }
-
-    #region <TriggerEvent>
-    public virtual void OnTriggerClicked()
-    {
-        if(TriggerActionEvent[(int) EventInfo.Clicked] != null) TriggerActionEvent[(int) EventInfo.Clicked](new CustomEventArgs.CommomActionArgs().SetCaster(this));
+        CurrentHealthPoint = MaximumHealthPoint;
+//        SoundManager.GetInstance
+//            .CastSfx(SoundManager.AudioMixerType.VOICE, ChampionType, K514SfxStorage.ActivityType.Dead).SetTrigger();
     }
     
-    public virtual void OnTriggerReleased()
+    public void OnActionTrigger(ActionButtonTrigger actionButtonTriggerCaster, ActionButtonTrigger.Type actionType)
     {
-        if(TriggerActionEvent[(int) EventInfo.Released] != null) TriggerActionEvent[(int) EventInfo.Released](new CustomEventArgs.CommomActionArgs().SetCaster(this));
-    }
+        var actionTypeId = (int) actionType;
+        var actionGroup = ActionGroupRoot[actionTypeId];
+
+        if (ActionStatusGroup[actionGroup].CurrentCooldown > 0) return;
+        if (_currentActionArgs != null && _currentActionArgs.TransitionRestrictTrigger) return;
+        if (CurrentActionGroup != null && CurrentActionGroup != actionGroup) ActionTrigger(UnitEventType.TransitionOcuured);
+
+        actionButtonTriggerCaster.SetBusy = true;
+        CurrentActionGroup = actionGroup;
+        CurrentActionArgs.SetActionTrigger(actionButtonTriggerCaster).SetCaster(this);
         
-    public virtual void OnCancelChackInvoked()
+        ActionTrigger(UnitEventType.SetTrigger);
+    }
+
+    public override void OnCastAnimationStandby()
     {
-        if(TriggerActionEvent[(int) EventInfo.CancelCheck] != null) TriggerActionEvent[(int) EventInfo.CancelCheck](new CustomEventArgs.CommomActionArgs().SetCaster(this));
+        ActionTrigger(UnitEventType.Standby);
+    }
+
+    public override void OnCastAnimationCue()
+    {        
+        ActionTrigger(UnitEventType.Cue);
+    }
+
+    public override void OnCastAnimationExit()
+    {                
+        ActionTrigger(UnitEventType.Exit);
+    }
+
+    public override void OnCastAnimationEnd()
+    {        
+        ActionTrigger(UnitEventType.End);
+    }
+
+    public override void OnCastAnimationCleanUp()
+    {                
+        ActionTrigger(UnitEventType.CleanUp);        
+    }
+
+    public override void OnHeartBeat()
+    {
+        base.OnHeartBeat();
+        
+        foreach (var actionStatusKeyValuePair in ActionStatusGroup)
+        {
+            var actionStatus = actionStatusKeyValuePair.Value;      
+            
+            actionStatus.CurrentCooldown = Math.Max(0, actionStatus.CurrentCooldown - 1);
+            
+            actionStatus.CurrentStackCooldown = Math.Max(0, actionStatus.CurrentStackCooldown - 1);
+            if (actionStatus.CurrentStackCooldown == 0 && 
+                actionStatus.CurrentStack < actionStatus.MaximumStack)
+            {
+                actionStatus.CurrentStackCooldown = actionStatus.MaximumStackCooldown;
+                actionStatus.CurrentStack++;
+            }
+        }
+
+        if (CurrentAction != null && CurrentAction[(int) UnitEventType.OnHeartBeat] != null)
+            CurrentAction[(int) UnitEventType.OnHeartBeat](CurrentActionArgs);
     }
     
-    #endregion
-
-    #region <AnimationEvent>
-    public override void OnExitedCastAnimation()
-    {
-        if(TriggerActionEvent[(int) EventInfo.Terminate] != null) TriggerActionEvent[(int) EventInfo.Terminate](CurrentEventState);
-    }
-
-    public override void OnEnteredEffectPeriod(int triggerId)
-    {
-        if(TriggerActionEvent[(int) EventInfo.Enter] != null) TriggerActionEvent[(int) EventInfo.Enter](CurrentEventState);
-    }
-
-    public override void OnExitedEffectPeriod(int triggerId)
-    {
-        if(TriggerActionEvent[(int) EventInfo.Exit] != null) TriggerActionEvent[(int) EventInfo.Exit](CurrentEventState);
-    }
-    #endregion    
+    #endregion </Callbacks>
     
-    #region <ColliderEvent>
-    public override void OnObjectTriggerEnterUnit(Unit collidedUnit)
+    #region <Properties>
+    
+    public Action<UnitEventArgs>[] CurrentAction
     {
-        if(TriggerActionEvent[(int) EventInfo.Collide] != null) TriggerActionEvent[(int) EventInfo.Collide](new CustomEventArgs.CommomActionArgs().SetCaster(this).SetCandidate(collidedUnit));
+        get { return _currentActionGroup != null ? 
+            _currentActionGroup[CurrentActionStatus.CurrentChain] : null; }
+    }
+
+    public List<Action<UnitEventArgs>[]> CurrentActionGroup
+    {
+        get { return _currentActionGroup; }
+        private set
+        {                        
+            _currentActionGroup = value;
+
+            if (value != null)
+            {
+                _currentActionArgs = ActionArgs[value];
+                _currentActionStatus = ActionStatusGroup[value];
+            }
+            else
+            {
+                _currentActionArgs = null;
+                _currentActionStatus = null;
+                HUDManager.GetInstance.State = HUDManager.HUDState.Playing;
+            }
+        }
+
+    }
+    public ActionStatus CurrentActionStatus
+    {
+        get { return _currentActionStatus; }
+        private set { _currentActionStatus = value; }
+    }
+    public UnitEventArgs CurrentActionArgs
+    {
+        get { return _currentActionArgs; }
+        private set { _currentActionArgs = value; }
     }
     
-    public override void OnObjectTriggerExitUnit(Unit collidedUnit){}
-    #endregion
-
-    #endregion
-
+    public float ActionPointRate
+    {
+        get { return (float) CurrentActionPoint / _maximumActionPoint;  }
+    }
+    
+    #endregion </Properties>
+    
     #region <Methods>
     
     public override void Move(Vector3 forceVector)
     {
         if (  UnitBoneAnimator.CurrentState == BoneAnimator.AnimationState.Hit
-            ||  UnitBoneAnimator.CurrentState == BoneAnimator.AnimationState.Cast  || NotMoveTrigger > 0)
+              ||  UnitBoneAnimator.CurrentState == BoneAnimator.AnimationState.Cast)
         {
             RunningTime = UpdateRunningTime * 0.1f;
             return;
@@ -141,19 +246,19 @@ public abstract class Champion : Unit
     }
     
     public override void Hurt(Unit caster, int damage, TextureType type, Vector3 forceDirection, 
-        Action<Unit, Unit, Vector3> action = null, bool isCancelCast = true)
+        Action<Unit, Unit, Vector3> action = null)
     {        
-        base.Hurt(caster, damage, type, forceDirection, action, isCancelCast);
+        base.Hurt(caster, damage, type, forceDirection, action);
 
         if (Filter.IsAlive(this))
         {
-            SoundManager.GetInstance
-                .CastSfx(SoundManager.AudioMixerType.VOICE, ChampionType, K514SfxStorage.ActivityType.Hitted).SetTrigger();
+//            SoundManager.GetInstance
+//                .CastSfx(SoundManager.AudioMixerType.VOICE, ChampionType, K514SfxStorage.ActivityType.Hitted).SetTrigger();
             UnitBoneAnimator.SetTrigger(BoneAnimator.AnimationState.Hit);
             UpdateTension();
         }
 
-        HUDManager.GetInstance.UpdateChampionScout();
+        HUDManager.GetInstance.UpdateChampionStateView();
         CameraManager.GetInstance.SetVibrateFx(damage, 0.15f);
     }
 
@@ -185,85 +290,184 @@ public abstract class Champion : Unit
     }
     
     public void ResetFromCast()
-    {
-        if (RunningTime > Mathf.Epsilon)
-            UnitBoneAnimator.SetTrigger(BoneAnimator.AnimationState.Move);
-        else        
-            UnitBoneAnimator.SetTrigger(BoneAnimator.AnimationState.Idle);
-            
+    {                       
+        CurrentActionArgs.ActionButtonTrigger.SetBusy = false;
+        CurrentActionGroup = null;
+        UnitBoneAnimator.SetTrigger(RunningTime > Mathf.Epsilon
+            ? BoneAnimator.AnimationState.Move
+            : BoneAnimator.AnimationState.Idle);
     }
 
-    public void NormalAction(float pFillAmount = 0f, bool isTriggerEvent = false)
+    /// <summary>
+    /// Actually trigger the action based on EventInfo.
+    /// </summary>
+    /// <param name="unitEventType">Used to what to do trigger the event.</param>
+    /// <returns>Returns about is the action triggered.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">Not defined action.</exception>
+    public bool ActionTrigger(UnitEventType unitEventType)
     {
-        TriggerActionEvent = NormalActionsEventGroup[NormalActionSequence];
-        if (TriggerActionEvent[(int) EventInfo.Birth] != null && !isTriggerEvent)
-        {
-            FillAmount = pFillAmount;
-            TriggerActionEvent[(int) EventInfo.Birth](
-                CurrentEventState = new CustomEventArgs.CommomActionArgs()
-                    .SetCaster(this)
-                    .SetActionTrigger(HUDManager.GetInstance.
-                        ActionTriggerGroup[(int) HUDManager.ActionTriggerType.NormalAction]));
-        }
-    }
+        if (CurrentAction == null || CurrentAction[(int) unitEventType] == null) return false;        
+        
+        CurrentAction[(int) unitEventType](CurrentActionArgs);
 
-    public void PrimaryAction(float pFillAmount = 0f, bool isTriggerEvent = false)
-    {
-        TriggerActionEvent = PrimaryActionEventGroup;
-        if (TriggerActionEvent[(int) EventInfo.Birth] != null && !isTriggerEvent)
+        if (CurrentAction == null) return true;
+        
+        switch (unitEventType)
         {
-            FillAmount = pFillAmount;
-            TriggerActionEvent[(int) EventInfo.Birth](
-                CurrentEventState = new CustomEventArgs.CommomActionArgs()
-                    .SetCaster(this)
-                    .SetActionTrigger(HUDManager.GetInstance.
-                        ActionTriggerGroup[(int) HUDManager.ActionTriggerType.LeftAction]));
+            case UnitEventType.Initialize:
+                break;
+            case UnitEventType.SetTrigger:
+                break;
+            case UnitEventType.Begin:
+                break;
+            case UnitEventType.Standby:
+                break;
+            case UnitEventType.Cue:
+                break;
+            case UnitEventType.Exit:
+                break;
+            case UnitEventType.End:
+                break;
+            case UnitEventType.CleanUp:
+                break;
         }
-    }
 
-    public void SecondaryAction(float pFillAmount = 0f, bool isTriggerEvent = false)
-    {
-        TriggerActionEvent = SecondaryActionEventGroup;
-        if (TriggerActionEvent[(int) EventInfo.Birth] != null && !isTriggerEvent)
-        {
-            FillAmount = pFillAmount;
-            TriggerActionEvent[(int) EventInfo.Birth](
-                CurrentEventState = new CustomEventArgs.CommomActionArgs()
-                    .SetCaster(this)
-                    .SetActionTrigger(HUDManager.GetInstance.
-                        ActionTriggerGroup[(int) HUDManager.ActionTriggerType.RightAction]));
-        }
-    }
+        return true;
+    }   
     
-    // transparent deprecated
-    protected override void UnitMove(Vector3 forceVector)
-    {
-        base.UnitMove(forceVector);
-        //TransparentManager.GetInstance.Trigger();
-    }
-
-    public virtual void ProcessNormalAttackSequence()
-    {
-        NormalActionSequence = (NormalActionSequence + 1) % NormalActionsEventGroup.Length;
-    }
-    
-    protected virtual Enemy DetectEnemyInRange(float radius)
+    protected virtual Enemy DetectEnemyInRange(float p_Radius)
     {        
-        var focusEnemyGroupNumber = Filter.GetTagGroupInRadiusCompareToTag("Enemy",radius,FilterCheckedObjectArray);
+        var focusEnemyGroupNumber = Filter.GetTagGroupInRadiusCompareToTag("Enemy",p_Radius,FilterCheckedObjectArray,_Transform.position);
         if (focusEnemyGroupNumber > 0)
         {
-            PlayerManager.GetInstance.SortObjectAgainstToChampionByDistance(FilterCheckedObjectArray,focusEnemyGroupNumber);
+            PlayerChampionHandler.GetInstance.SortObjectAgainstToChampionByDistance(FilterCheckedObjectArray,focusEnemyGroupNumber);
             return (Enemy) FilterCheckedObjectArray[0];
         }
         return null;
     }
 
-    public void SetCurrentEventState(CustomEventArgs.CommomActionArgs State)
-    {
-        CurrentEventState = State;
+    #endregion
+
+    #region <Classes>
+    
+    public class ActionStatus
+    {        
+        public CommomActionArgs EventArgs;
+        
+        private int _maximumCooldown, _currentCooldown;
+        private int _maximumStackCooldown, _currentStackCooldown;
+        private int _maximumStack, _currentStack;
+        private int _maximumChain, _currentChain;
+
+        public int MaximumCooldown
+        {
+            get { return _maximumCooldown;}
+            private set
+            {
+                _maximumCooldown = value;
+                HUDManager.GetInstance.OnActionStatusUpdate();
+            }
+        }
+
+        public int MaximumStackCooldown
+        {
+            get { return _maximumStackCooldown; }
+            private set
+            {
+                _maximumStackCooldown = value;
+                HUDManager.GetInstance.OnActionStatusUpdate();
+            }
+        }
+
+        public int MaximumStack
+        {
+            get { return _maximumStack; }
+            private set 
+            {
+                _maximumStack = value;
+                HUDManager.GetInstance.OnActionStatusUpdate(); 
+            }
+        }
+
+        public int MaximumChain
+        {
+            get { return _maximumChain; }
+            private set
+            {
+                _maximumChain = value;             
+            }
+        }
+        
+        public int CurrentCooldown
+        {
+            get { return _currentCooldown; }
+            set
+            {
+                _currentCooldown = value;
+                HUDManager.GetInstance.OnActionStatusUpdate();
+            }
+        }
+
+        public int CurrentStackCooldown
+        {
+            get { return _currentStackCooldown; }
+            set
+            {
+                _currentStackCooldown = value;
+                HUDManager.GetInstance.OnActionStatusUpdate();
+            }
+        }
+
+        public int CurrentStack
+        {
+            get { return _currentStack; }
+            set
+            {
+                _currentStack = value;
+                HUDManager.GetInstance.OnActionStatusUpdate();
+            }
+        }        
+
+        public int CurrentChain
+        {
+            get { return _currentChain; }
+            set
+            {
+                _currentChain = value;
+                if (_currentChain >= MaximumChain) _currentChain = 0;
+            }
+        }
+
+        public ActionStatus SetCooldown(int cooldown)
+        {
+            MaximumCooldown = cooldown;
+            CurrentCooldown = cooldown;
+                        
+            return this;
+        }
+
+        public ActionStatus SetStackCooldown(int cooldown)
+        {
+            _maximumStackCooldown = cooldown;
+            _currentStackCooldown = cooldown;
+
+            return this;
+        }
+
+        public ActionStatus SetStack(int stack)
+        {
+            _maximumStack = stack;
+            _currentStack = stack;
+            return this;
+        }
+
+        public ActionStatus SetChain(int chain)
+        {
+            MaximumChain = chain;
+            return this;
+        }
     }
 
-
-    #endregion
+    #endregion </Classes>
     
 }

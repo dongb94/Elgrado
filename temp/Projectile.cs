@@ -20,7 +20,7 @@ public partial class Projectile : FormattedMonoBehaviour
     #region <Fields>
     
     /* Key for Validate */
-    public ProjectileManager.Type Type { get; private set; }
+    public ProjectileFactory.Type Type { get; private set; }
     protected bool _isActive;
     public bool IsActive { get { return _isActive; } }
     public Unit Caster { get; private set; }
@@ -32,7 +32,7 @@ public partial class Projectile : FormattedMonoBehaviour
     public Vector3 Acceleration { get; private set; }
     public float AccelerationFactor { get; private set; }
     public float Gravity { get; private set; }
-    public Vector3 PeekedNestPosition;
+    [NonSerialized]public Vector3 PeekedNestPosition;
 
     /* Collision Box Size */
     private ProjectileType _projectileType = ProjectileType.Box ;
@@ -48,15 +48,16 @@ public partial class Projectile : FormattedMonoBehaviour
     protected bool _isIgnoreObstacle;
     protected bool _isIgnoreUnit;
     private int _castHitNumber, _overLapCollideNumber;
-    
+
     /* Action */
-    private Action<CustomEventArgs.CommomActionArgs> _collideUnitAction;
-    private Action<CustomEventArgs.CommomActionArgs> _collideObstacleAction;
-    private Action<CustomEventArgs.CommomActionArgs> _updateAction;
-    private Action<CustomEventArgs.CommomActionArgs> _expiredLifeAction;
-    private Action<CustomEventArgs.CommomActionArgs> _onHeartBeatAction;
-    private Action<CustomEventArgs.CommomActionArgs> _onRemoveStart,_onRemoveEnd;
-    private Action<CustomEventArgs.CommomActionRefs> _onWhileRemovingAction;
+    private Action<CommomActionArgs> _fixedUpdateAction;
+    private Action<CommomActionArgs> _collideUnitAction;
+    private Action<CommomActionArgs> _collideObstacleAction;
+    private Action<CommomActionArgs> _updateAction;
+    private Action<CommomActionArgs> _expiredLifeAction;
+    private Action<CommomActionArgs> _onHeartBeatAction;
+    private Action<CommomActionArgs> _onRemoveStart,_onRemoveEnd;
+    private Action<CommomActionRefs> _onWhileRemovingAction;
     
     /* Heart beat */
     private int _onHeartBeatEventTension;
@@ -87,7 +88,7 @@ public partial class Projectile : FormattedMonoBehaviour
             if (_currentMoveAction.isValid && innerElapsedTime > _currentMoveActionCumulativeTime)
             {
                 if(_currentMoveAction.ExpireAction!=null) {
-                    _currentMoveAction.ExpireAction(new CustomEventArgs.CommomActionArgs()
+                    _currentMoveAction.ExpireAction(new CommomActionArgs()
                     .SetMorphable(this),_currentMoveAction);
                     _currentMoveAction.ExpireAction = null;
                 }
@@ -106,11 +107,21 @@ public partial class Projectile : FormattedMonoBehaviour
     [NonSerialized] public int RemoveDelayCount;
     [NonSerialized] public bool RemoveDeadlock;    
 
-    /*Listed Projectile Move Action*/
-    public List<Vector3> _moveActionSequenceValueSet;
+    /* Listed Projectile Move Action */
+    [NonSerialized ]public List<Vector3> _moveActionSequenceValueSet;
     [NonSerialized] public float _currentMoveActionCumulativeTime;
     private Queue<ProjectileAnimationEventArgs> _projectileMoveActionSequenceList;
     private ProjectileAnimationEventArgs _currentMoveAction;
+    
+    /* Chasing Target */
+    private Transform _chasingTarget;
+    
+    /* join */
+    private Projectile _Join;
+    
+    /* Deffered Activate */
+    private float _DefferedActivateTime;
+    
     
     #endregion </Fields>
 
@@ -151,8 +162,8 @@ public partial class Projectile : FormattedMonoBehaviour
 
     protected void FixedUpdate()
     {
-        if (!_isActive) return;
         if (_arrowFadeWhenRemovingWholeFlag) _mRenderer.enabled = false;
+        if (!_isActive) return;
         PeekedNestPosition = _Transform.position;
         
     #region <ProjectileMoveAnimation>
@@ -165,11 +176,20 @@ public partial class Projectile : FormattedMonoBehaviour
 
     #region <UnitCollideCheck>
         CheckCollisionAboutUnit(_collideUnitAction);
+    #endregion  
+
+    #region <FixedUpdateEvent>
+        if(_fixedUpdateAction != null)
+        {
+            _fixedUpdateAction(new CommomActionArgs()
+                .SetMorphable(this)
+                );
+        }
     #endregion
 
     #region <ApplyMove>
 
-    ApplyMoveAndDirection(PeekedNestPosition);
+        ApplyMoveAndDirection(PeekedNestPosition);
     ApplyTimeUnitForward();
         
     #endregion
@@ -182,7 +202,7 @@ public partial class Projectile : FormattedMonoBehaviour
             // Defined Action: Expired.
             if (_expiredLifeAction != null)
             {
-                _expiredLifeAction(new CustomEventArgs.CommomActionArgs()
+                _expiredLifeAction(new CommomActionArgs()
                     .SetMorphable(this)
                 );
             }
@@ -190,6 +210,12 @@ public partial class Projectile : FormattedMonoBehaviour
         }
 
     #endregion
+
+    #region <JoinExpiredCheck>
+
+        if(_Join != null && !_Join.IsActive) Remove();
+
+     #endregion
         
     }
     
@@ -199,6 +225,10 @@ public partial class Projectile : FormattedMonoBehaviour
 
     public override void OnCreated()
     {
+        _DefferedActivateTime = 0f;
+        _Join = null;
+        _chasingTarget = null;
+        _chasingTarget = null;
         PeekedNestPosition = Vector3.zero;
         _castHitNumber = _overLapCollideNumber = 0;
         _currentMoveActionCumulativeTime = 0f;
@@ -213,6 +243,7 @@ public partial class Projectile : FormattedMonoBehaviour
         _isIgnoreObstacle = _isIgnoreUnit = false;
         _isActive = false;
         _isOnHeartBeat = false;
+        _fixedUpdateAction = null;
         _collideUnitAction = null;
         _collideObstacleAction = null;
         _expiredLifeAction = null;
@@ -221,7 +252,7 @@ public partial class Projectile : FormattedMonoBehaviour
         _onRemoveStart = null;
         _onRemoveEnd = null;
         
-        Type = ProjectileManager.Type.None;
+        Type = ProjectileFactory.Type.None;
         _maxColliderNumber = 0;
         CollidedUnitGroup.Clear();
         ExCollidedUnitGroup.Clear();
@@ -240,17 +271,14 @@ public partial class Projectile : FormattedMonoBehaviour
     {
         if (_onRemoveEnd != null)
         {
-            _onRemoveEnd(new CustomEventArgs.CommomActionArgs().SetMorphable(this));
+            _onRemoveEnd(new CommomActionArgs().SetMorphable(this));
         }
 
         if (_arrowFadeWhenRemovingStartFlag || _arrowFadeWhenRemovingWholeFlag) _mRenderer.enabled = true; 
         
         if (!_particleStopLoopWhenRemoveStartFlag)
         {
-            for (var i = 0 ; i < _particleList.Length ; i++)
-            {
-                _particleList[i].loop = _stackedParticleLoopOriginFlagSet[i];
-            }
+            RevertParticleLoop();
         }
 
         if (_mTrail != null)
@@ -295,7 +323,7 @@ public partial class Projectile : FormattedMonoBehaviour
     public void Remove()
     {
         if (RemoveDeadlock) return;
-        if (_onRemoveStart != null) _onRemoveStart(new CustomEventArgs.CommomActionArgs().SetMorphable(this));
+        if (_onRemoveStart != null) _onRemoveStart(new CommomActionArgs().SetMorphable(this));
         
         if (RemoveDelay <= Mathf.Epsilon)
         {
@@ -308,10 +336,7 @@ public partial class Projectile : FormattedMonoBehaviour
             if (_arrowFadeWhenRemovingStartFlag) _mRenderer.enabled = false; 
             if (_particleStopLoopWhenRemoveStartFlag)
             {
-                for (var i = 0 ; i < _particleList.Length ; i++)
-                {
-                    _particleList[i].loop = false;
-                }
+                DisableParticleLoop();
             }
             
             #region <PooledCoroutineForAsyncProjectilRemove>
@@ -354,6 +379,16 @@ public partial class Projectile : FormattedMonoBehaviour
         Velocity += Acceleration * Time.fixedDeltaTime;
         Velocity *= AccelerationFactor;
         return _Transform.position + Velocity * Time.fixedDeltaTime;
+    }
+    
+    private Vector3 SimulateDefaultLinearProgressKinematic(Vector3 p_Vector)
+    {
+        var l_Acceleration = Acceleration;
+        var l_Velocity = Velocity;
+        l_Acceleration += Vector3.down * Gravity * Time.fixedDeltaTime;
+        l_Velocity += l_Acceleration * Time.fixedDeltaTime;
+        l_Velocity *= AccelerationFactor;
+        return p_Vector + l_Velocity * Time.fixedDeltaTime;
     }
 
     private void ApplyMoveAndDirection(Vector3 p_NestPosition)
@@ -418,14 +453,14 @@ public partial class Projectile : FormattedMonoBehaviour
             else
             {
                 if(_currentMoveAction.InitAction!=null) {
-                    _currentMoveAction.InitAction(new CustomEventArgs.CommomActionArgs()
+                    _currentMoveAction.InitAction(new CommomActionArgs()
                         .SetMorphable(this),_currentMoveAction);
                     _currentMoveAction.InitAction = null;
                 }
                 if (ElapsedTime <= _currentMoveActionCumulativeTime)
                 {
                     if(_currentMoveAction.MoveAction!=null) {
-                        PeekedNestPosition = _currentMoveAction.MoveAction(new CustomEventArgs.CommomActionArgs()
+                        PeekedNestPosition = _currentMoveAction.MoveAction(new CommomActionArgs()
                         .SetMorphable(this),_currentMoveAction,_currentMoveAction.LerpFunction);
                         
                     }
@@ -439,7 +474,7 @@ public partial class Projectile : FormattedMonoBehaviour
         }
     }
 
-    private bool CheckCollisionAboutObstaclesAndTerrain(Action<CustomEventArgs.CommomActionArgs> p_ActionWhenOccurCollision = null)
+    private bool CheckCollisionAboutObstaclesAndTerrain(Action<CommomActionArgs> p_ActionWhenOccurCollision = null)
     {
         if (!_isIgnoreObstacle)
         {
@@ -454,7 +489,7 @@ public partial class Projectile : FormattedMonoBehaviour
                 // Defined Action: Collided Obstacle.
                 if (p_ActionWhenOccurCollision != null)
                 {
-                    p_ActionWhenOccurCollision(new CustomEventArgs.CommomActionArgs()
+                    p_ActionWhenOccurCollision(new CommomActionArgs()
                         .SetMorphable(this)
                     );
                 }
@@ -469,10 +504,12 @@ public partial class Projectile : FormattedMonoBehaviour
         return false;
     }
 
-    private bool CheckCollisionAboutUnit(Action<CustomEventArgs.CommomActionArgs> p_ActionWhenOccurCollision = null)
+    private bool CheckCollisionAboutUnit(Action<CommomActionArgs> p_ActionWhenOccurCollision = null)
     {
       if (!_isIgnoreUnit)
         {
+            if (p_ActionWhenOccurCollision == null) return false;
+
             CollidedUnitGroup.Clear();
             
             _overLapCollideNumber = CheckCollisionWithCast(CastHitGroup, _halfExtents, PeekedNestPosition, UnitColliderLayerMask,
@@ -514,18 +551,10 @@ public partial class Projectile : FormattedMonoBehaviour
             if (CollidedUnitGroup.Count > 0)
             {
                 // Defined Action: Collided Unit.
-                if (p_ActionWhenOccurCollision != null)
-                {
-                    p_ActionWhenOccurCollision(new CustomEventArgs.CommomActionArgs()
-                        .SetMorphable(this)
-                    );
-                }
-                // Default Action: Collided Unit.
-                else
-                {
-                    Remove();
-                }
-                
+                p_ActionWhenOccurCollision(new CommomActionArgs()
+                    .SetMorphable(this)
+                );
+
                 if (_maxNumberOfHitTime > 1)
                 {
                     _maxNumberOfHitTime--;
@@ -535,6 +564,30 @@ public partial class Projectile : FormattedMonoBehaviour
             }
         }
         return false;
+    }
+
+    public void ClearEffect()
+    {
+        for (var i = 0; i < _particleList.Length; i++)
+        {
+            _particleList[i].Clear();
+        }
+    }
+
+    public void RevertParticleLoop()
+    {
+        for (var i = 0 ; i < _particleList.Length ; i++)
+        {
+            _particleList[i].loop = _stackedParticleLoopOriginFlagSet[i];
+        }
+    }
+
+    public void DisableParticleLoop()
+    {
+        for (var i = 0 ; i < _particleList.Length ; i++)
+        {
+            _particleList[i].loop = false;
+        }
     }
 
     #endregion </Methods>
@@ -548,9 +601,9 @@ public partial class Projectile : FormattedMonoBehaviour
         /* setter property member */
         public FormattedMonoBehaviour ProjectileToMove;
         public float AnimationDuration { get; private set;}
-        public Action<CustomEventArgs.CommomActionArgs,ProjectileAnimationEventArgs> InitAction;
-        public Func<CustomEventArgs.CommomActionArgs,ProjectileAnimationEventArgs,Func<float, float, float, float, float>,Vector3> MoveAction;
-        public Action<CustomEventArgs.CommomActionArgs,ProjectileAnimationEventArgs> ExpireAction;
+        public Action<CommomActionArgs,ProjectileAnimationEventArgs> InitAction;
+        public Func<CommomActionArgs,ProjectileAnimationEventArgs,Func<float, float, float, float, float>,Vector3> MoveAction;
+        public Action<CommomActionArgs,ProjectileAnimationEventArgs> ExpireAction;
         public Func<float, float, float, float, float> LerpFunction;
         public bool isValid;
         
@@ -592,19 +645,19 @@ public partial class Projectile : FormattedMonoBehaviour
             return this;
         }
         
-        public ProjectileAnimationEventArgs SetInitAction(Action<CustomEventArgs.CommomActionArgs,ProjectileAnimationEventArgs> p_InitAction)
+        public ProjectileAnimationEventArgs SetInitAction(Action<CommomActionArgs,ProjectileAnimationEventArgs> p_InitAction)
         {
             InitAction = p_InitAction;
             return this;
         }
         
-        public ProjectileAnimationEventArgs SetMoveAction(Func<CustomEventArgs.CommomActionArgs,ProjectileAnimationEventArgs,Func<float, float, float, float, float>,Vector3> p_MoveAction)
+        public ProjectileAnimationEventArgs SetMoveAction(Func<CommomActionArgs,ProjectileAnimationEventArgs,Func<float, float, float, float, float>,Vector3> p_MoveAction)
         {
             MoveAction = p_MoveAction;
             return this;
         }
         
-        public ProjectileAnimationEventArgs SetExpiredAction(Action<CustomEventArgs.CommomActionArgs,ProjectileAnimationEventArgs> p_ExpiredAction)
+        public ProjectileAnimationEventArgs SetExpiredAction(Action<CommomActionArgs,ProjectileAnimationEventArgs> p_ExpiredAction)
         {
             ExpireAction = p_ExpiredAction;
             return this;

@@ -1,7 +1,7 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
 
-public class ProjectileManager : Singleton<ProjectileManager>
+public class ProjectileFactory : Singleton<ProjectileFactory>
 {
 
     #region <Fields>

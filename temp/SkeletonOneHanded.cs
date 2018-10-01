@@ -33,34 +33,44 @@ public class SkeletonOneHanded : Enemy
     
     #region <Callbacks>
     
-    public override void OnObjectTriggerEnterUnit(Unit collidedUnit)
-    {
-        if (UnitBoneAnimator.CurrentState != BoneAnimator.AnimationState.Cast) return;
-//            || CollidedUnitGroup.Exists(collidedUnitCandidate => collidedUnitCandidate == collidedUnit)) return;
+//    public override void OnObjectTriggerEnterUnit(Unit collidedUnit)
+//    {
+//        if (UnitBoneAnimator.CurrentState != BoneAnimator.AnimationState.Cast) return;
+////            || CollidedUnitGroup.Exists(collidedUnitCandidate => collidedUnitCandidate == collidedUnit)) return;
+//
+//        switch (_trigger)
+//        {
+//            case Trigger.NormalAction01:
+//            case Trigger.NormalAction02:
+//            case Trigger.NormalAction03:
+//                collidedUnit.Hurt(this, Power, TextureType.Medium, GetNormDirectionToMove(collidedUnit),
+//                    (trigger, subject, forceVector) =>
+//                    {
+//                        subject.AddForce(forceVector);
+//                    });
+//                break;
+//            case Trigger.Count:
+//            default:
+//                throw new ArgumentOutOfRangeException();
+//        }
+//    }
+//
+//    public override void OnObjectTriggerExitUnit(Unit collidedUnit)
+//    {
+//        if (UnitBoneAnimator.CurrentState != BoneAnimator.AnimationState.Cast) return;
+//    }
 
-        switch (_trigger)
-        {
-            case Trigger.NormalAction01:
-            case Trigger.NormalAction02:
-            case Trigger.NormalAction03:
-                collidedUnit.Hurt(this, Power, TextureType.Medium, GetNormDirectionToMove(collidedUnit),
-                    (trigger, subject, forceVector) =>
-                    {
-                        subject.AddForce(forceVector);
-                    });
-                break;
-            case Trigger.Count:
-            default:
-                throw new ArgumentOutOfRangeException();
-        }
+    public override void OnCastAnimationStandby()
+    {
+        throw new NotImplementedException();
     }
 
-    public override void OnObjectTriggerExitUnit(Unit collidedUnit)
+    public override void OnCastAnimationCue()
     {
-        if (UnitBoneAnimator.CurrentState != BoneAnimator.AnimationState.Cast) return;
+        throw new NotImplementedException();
     }
 
-    public override void OnExitedCastAnimation()
+    public override void OnCastAnimationExit()
     {
         switch (_trigger)
         {
@@ -74,25 +84,14 @@ public class SkeletonOneHanded : Enemy
         }
     }
 
-    public override void OnEnteredEffectPeriod(int triggerId)
+    public override void OnCastAnimationEnd()
     {
-        _trigger = (Trigger) triggerId;
-        
-        switch (_trigger)
-        {
-            case Trigger.NormalAction02:
-                UnitSpellColliderGroup[(int) SpellCollider.OtherHanded].enabled = true;
-                break;
-            case Trigger.NormalAction01:                                
-            case Trigger.NormalAction03:
-                UnitSpellColliderGroup[(int) SpellCollider.WeaponHanded].enabled = true;
-                break;
-            case Trigger.Count:                
-            default:
-                throw new ArgumentOutOfRangeException();
-        }
     }
-    
+
+    public override void OnCastAnimationCleanUp()
+    {
+    }
+
     public override void OnIdleRelax() {}
     
     protected override void OnDeath()
@@ -111,8 +110,7 @@ public class SkeletonOneHanded : Enemy
         base.AttackTrigger();
 
         var normalAttackIndex = Random.Range(0, (int) Trigger.Count);
-        
-        UnitBoneAnimator.SetCast("Normal-Action", normalAttackIndex, CastSpeed);
+        UnitBoneAnimator.SetCast("Normal-Action", normalAttackIndex);
     }
 
     #endregion </Methods>
