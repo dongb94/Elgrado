@@ -22,6 +22,7 @@ public abstract class Champion : Unit
     public List<List<Action<UnitEventArgs>[]>> ActionGroupRoot { get; private set; }
     public Dictionary<List<Action<UnitEventArgs>[]>, ActionStatus> ActionStatusGroup { get; private set; }
     public Dictionary<List<Action<UnitEventArgs>[]>, UnitEventArgs> ActionArgs { get; private set; }
+    [NonSerialized]public SpellHyperParameter[] hyperParameterSet;
 
     public int CurrentActionPoint { get; private set; }
     [SerializeField] private int _maximumActionPoint;
@@ -34,37 +35,18 @@ public abstract class Champion : Unit
 
     #region <Enums>
     
-    public enum UnitEventType
+    public enum HyperParameterOfSpell
     {
-        Initialize,
-        SetTrigger,
-        
-        Begin,        
-        Standby,
-        Cue,
-        Exit,
-        End,  
-        
-        CleanUp,
-        
-        OnHeartBeat,
-        OnFixedUpdate,
-        OnRelax,
-
-        TransitionOcuured,
-        
-        Count
-    }   
-
+        NormalAttack01, NormalAttack02, NormalAttack03, Spell01, Spell02, Spell03, Spell04, Spell05, Spell06, Spell07, Spell08, Spell09, Spell10, End
+    }
+    
     #endregion </Enums>
 
     #region <Unity/Callbacks>
 
     protected override void Awake()
     {
-        base.Awake();
-
-        Controller = GetComponent<CharacterController>();
+        base.Awake();       
         
         ActionGroupRoot = new List<List<Action<UnitEventArgs>[]>>();
         ActionStatusGroup = new Dictionary<List<Action<UnitEventArgs>[]>, ActionStatus>();
@@ -82,6 +64,8 @@ public abstract class Champion : Unit
         }
         
         CurrentActionPoint = _maximumActionPoint;
+        
+        hyperParameterSet = new SpellHyperParameter[(int) HyperParameterOfSpell.End];
     }
 
     protected void OnEnable()
@@ -122,10 +106,10 @@ public abstract class Champion : Unit
         var actionGroup = ActionGroupRoot[actionTypeId];
 
         if (ActionStatusGroup[actionGroup].CurrentCooldown > 0) return;
+        if (ActionStatusGroup[actionGroup].MaximumStack > 0 && ActionStatusGroup[actionGroup].CurrentStack == 0) return;
         if (_currentActionArgs != null && _currentActionArgs.TransitionRestrictTrigger) return;
-        if (CurrentActionGroup != null && CurrentActionGroup != actionGroup) ActionTrigger(UnitEventType.TransitionOcuured);
+        if (CurrentActionGroup != null && CurrentActionGroup != actionGroup) OnTransitionToOtherCast();
 
-        actionButtonTriggerCaster.SetBusy = true;
         CurrentActionGroup = actionGroup;
         CurrentActionArgs.SetActionTrigger(actionButtonTriggerCaster).SetCaster(this);
         
@@ -142,6 +126,22 @@ public abstract class Champion : Unit
         ActionTrigger(UnitEventType.Cue);
     }
 
+    public override void OnCastAnimationCue2()
+    {        
+        ActionTrigger(UnitEventType.Cue2);
+    }
+    
+    public override void OnCastAnimationCue3()
+    {        
+        ActionTrigger(UnitEventType.Cue3);
+    }
+    
+    public override void OnCastAnimationCue4()
+    {        
+        ActionTrigger(UnitEventType.Cue4);
+    }
+
+    
     public override void OnCastAnimationExit()
     {                
         ActionTrigger(UnitEventType.Exit);
@@ -152,9 +152,15 @@ public abstract class Champion : Unit
         ActionTrigger(UnitEventType.End);
     }
 
-    public override void OnCastAnimationCleanUp()
+    public void OnCastAnimationCleanUp()
     {                
         ActionTrigger(UnitEventType.CleanUp);        
+    }
+
+    public void OnTransitionToOtherCast()
+    {        
+        ActionTrigger(UnitEventType.OnTransitionToOtherCast);
+        OnCastAnimationCleanUp();
     }
 
     public override void OnHeartBeat()
@@ -267,35 +273,12 @@ public abstract class Champion : Unit
         ForceVector = Vector3.zero;                
         RunningTime = .0f;
     }
-
-    public Enemy DetectAndChaseEnemyInRange(float radius, float chaseRate, float rushRate)
+   
+    public override void ResetFromCast()
     {
-        var focusEnemy = DetectEnemyInRange(radius);
-
-        if (focusEnemy != null)
-        {
-            SetAngleToDestination(GetNormDirectionToMove(focusEnemy));
-            _Transform.eulerAngles = Vector3.up * AngleToDestination;
-            AddForce(GetNormDirectionToMove(focusEnemy) * focusEnemy.DistanceTowardPlayer * chaseRate);
-            
-            return focusEnemy;
-        }
-        
-        if (rushRate > Mathf.Epsilon)
-        {            
-            AddForce(_Transform.TransformDirection(Vector3.forward * rushRate));
-        }
-
-        return focusEnemy;
-    }
-    
-    public void ResetFromCast()
-    {                       
-        CurrentActionArgs.ActionButtonTrigger.SetBusy = false;
         CurrentActionGroup = null;
-        UnitBoneAnimator.SetTrigger(RunningTime > Mathf.Epsilon
-            ? BoneAnimator.AnimationState.Move
-            : BoneAnimator.AnimationState.Idle);
+        base.ResetFromCast();
+        
     }
 
     /// <summary>
@@ -329,25 +312,44 @@ public abstract class Champion : Unit
             case UnitEventType.End:
                 break;
             case UnitEventType.CleanUp:
+                ResetFromCast();
                 break;
+            case UnitEventType.OnHeartBeat:
+                break;
+            case UnitEventType.OnFixedUpdate:
+                break;
+            case UnitEventType.OnRelax:
+                break;
+            case UnitEventType.OnTransitionToOtherCast:
+                break;
+            case UnitEventType.Count:
+            default:
+                throw new ArgumentOutOfRangeException("UnitEventType", unitEventType, null);
         }
 
         return true;
     }   
-    
-    protected virtual Enemy DetectEnemyInRange(float p_Radius)
-    {        
-        var focusEnemyGroupNumber = Filter.GetTagGroupInRadiusCompareToTag("Enemy",p_Radius,FilterCheckedObjectArray,_Transform.position);
-        if (focusEnemyGroupNumber > 0)
-        {
-            PlayerChampionHandler.GetInstance.SortObjectAgainstToChampionByDistance(FilterCheckedObjectArray,focusEnemyGroupNumber);
-            return (Enemy) FilterCheckedObjectArray[0];
-        }
-        return null;
-    }
 
     #endregion
 
+    #region <Structs>
+
+    public struct SpellHyperParameter
+    {
+        public int CoolDown;
+        public int Damage;
+        public float Range;
+        public int Motion;
+        public Vector3 ColliderHalfExtends;
+
+        public Vector3 GetHalfExtends()
+        {
+            return ColliderHalfExtends == Vector3.zero ? Vector3.one * 0.003f : ColliderHalfExtends;
+        }
+    }
+
+    #endregion
+    
     #region <Classes>
     
     public class ActionStatus

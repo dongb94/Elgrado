@@ -69,6 +69,21 @@ public class SkeletonOneHanded : Enemy
     {
         throw new NotImplementedException();
     }
+    
+    public override void OnCastAnimationCue2()
+    {
+        throw new NotImplementedException();
+    }
+    
+    public override void OnCastAnimationCue3()
+    {
+        throw new NotImplementedException();
+    }
+    
+    public override void OnCastAnimationCue4()
+    {
+        throw new NotImplementedException();
+    }
 
     public override void OnCastAnimationExit()
     {
@@ -85,10 +100,6 @@ public class SkeletonOneHanded : Enemy
     }
 
     public override void OnCastAnimationEnd()
-    {
-    }
-
-    public override void OnCastAnimationCleanUp()
     {
     }
 

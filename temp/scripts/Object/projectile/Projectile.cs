@@ -6,7 +6,7 @@ using UnityEngine;
 using UnityEngine.Assertions;
 using Object = UnityEngine.Object;
 
-public partial class Projectile : FormattedMonoBehaviour
+public partial class Projectile : PreProcessedMonoBehaviour
 {
     #region <Consts>
 
@@ -164,7 +164,7 @@ public partial class Projectile : FormattedMonoBehaviour
     {
         if (_arrowFadeWhenRemovingWholeFlag) _mRenderer.enabled = false;
         if (!_isActive) return;
-        PeekedNestPosition = _Transform.position;
+        PeekedNestPosition = Transform.position;
         
     #region <ProjectileMoveAnimation>
         PeekNextPositon();
@@ -176,15 +176,19 @@ public partial class Projectile : FormattedMonoBehaviour
 
     #region <UnitCollideCheck>
         CheckCollisionAboutUnit(_collideUnitAction);
-    #endregion  
+        #endregion
 
     #region <FixedUpdateEvent>
-        if(_fixedUpdateAction != null)
+        if (!CheckCollisionAboutUnit(_fixedUpdateAction,false))
         {
-            _fixedUpdateAction(new CommomActionArgs()
-                .SetMorphable(this)
-                );
+            if (_fixedUpdateAction != null)
+            {
+                _fixedUpdateAction(new CommomActionArgs()
+                    .SetMorphable(this)
+                    );
+            }
         }
+        
     #endregion
 
     #region <ApplyMove>
@@ -276,10 +280,7 @@ public partial class Projectile : FormattedMonoBehaviour
 
         if (_arrowFadeWhenRemovingStartFlag || _arrowFadeWhenRemovingWholeFlag) _mRenderer.enabled = true; 
         
-        if (!_particleStopLoopWhenRemoveStartFlag)
-        {
-            RevertParticleLoop();
-        }
+        RevertParticleLoop();
 
         if (_mTrail != null)
         {
@@ -291,8 +292,7 @@ public partial class Projectile : FormattedMonoBehaviour
     {
         if (!_isActive || !_isOnHeartBeat) return;
         if (_arrowFadeWhenRemovingWholeFlag) _mRenderer.enabled = false;
-        PeekedNestPosition = _Transform.position;
-        
+        PeekedNestPosition = Transform.position;
         #region <ProjectileMoveAnimation>
         PeekNextPositon();
         #endregion
@@ -306,11 +306,16 @@ public partial class Projectile : FormattedMonoBehaviour
             }
             _onHeartBeatEventCounter = 0;
         }
-
         if (_onHeartBeatEventTension > 0)
         {
             #region <UnitCollideCheck>
-            if (CheckCollisionAboutUnit(_onHeartBeatAction)) return;
+            if (!CheckCollisionAboutUnit(_onHeartBeatAction))
+            {
+                _onHeartBeatAction(new CommomActionArgs()
+                    .SetMorphable(this)
+                );
+            }
+            
             #endregion
             --_onHeartBeatEventTension;
         }
@@ -378,7 +383,7 @@ public partial class Projectile : FormattedMonoBehaviour
         Acceleration += Vector3.down * Gravity * Time.fixedDeltaTime;
         Velocity += Acceleration * Time.fixedDeltaTime;
         Velocity *= AccelerationFactor;
-        return _Transform.position + Velocity * Time.fixedDeltaTime;
+        return Transform.position + Velocity * Time.fixedDeltaTime;
     }
     
     private Vector3 SimulateDefaultLinearProgressKinematic(Vector3 p_Vector)
@@ -393,9 +398,9 @@ public partial class Projectile : FormattedMonoBehaviour
 
     private void ApplyMoveAndDirection(Vector3 p_NestPosition)
     {
-        var l_Direction = (p_NestPosition - _Transform.position);
-        _Transform.position = p_NestPosition;
-        if(l_Direction != Vector3.zero) _Transform.forward = l_Direction;
+        var l_Direction = (p_NestPosition - Transform.position);
+        Transform.position = p_NestPosition;
+        if(l_Direction != Vector3.zero) Transform.forward = l_Direction;
     }
 
     private void ApplyTimeUnitForward()
@@ -405,8 +410,8 @@ public partial class Projectile : FormattedMonoBehaviour
 
     private int CheckCollisionWithCast(RaycastHit[] p_NonAllocStorage, Vector3 p_HitBox, Vector3 p_PeekedNextPosition, int p_LayerMask, Vector3 p_Center)
     {
-        var l_Direction = (p_PeekedNextPosition - _Transform.position).normalized;
-        var l_Distance = (p_PeekedNextPosition - _Transform.position).magnitude;
+        var l_Direction = (p_PeekedNextPosition - Transform.position).normalized;
+        var l_Distance = (p_PeekedNextPosition - Transform.position).magnitude;
         int l_Result = 0;
         switch (_projectileType)
         {
@@ -414,7 +419,7 @@ public partial class Projectile : FormattedMonoBehaviour
                 l_Result = Physics.RaycastNonAlloc(p_Center, l_Direction, p_NonAllocStorage, l_Distance, p_LayerMask);
                 break;
             case ProjectileType.Box: //case box
-                l_Result = Physics.BoxCastNonAlloc(p_Center, p_HitBox, l_Direction, p_NonAllocStorage,  _Transform.rotation, l_Distance, p_LayerMask);
+                l_Result = Physics.BoxCastNonAlloc(p_Center, p_HitBox, l_Direction, p_NonAllocStorage,  Transform.rotation, l_Distance, p_LayerMask);
                 break;
             case ProjectileType.Sphere: //case sphere
                 l_Result = Physics.SphereCastNonAlloc(p_Center, p_HitBox.magnitude, l_Direction, p_NonAllocStorage, l_Distance, p_LayerMask);
@@ -429,7 +434,7 @@ public partial class Projectile : FormattedMonoBehaviour
         switch (_projectileType)
         {
             case ProjectileType.Box: //case box
-                l_Result = Physics.OverlapBoxNonAlloc(p_Center , p_HitBox, p_NonAllocStorage,  _Transform.rotation, p_LayerMask);
+                l_Result = Physics.OverlapBoxNonAlloc(p_Center , p_HitBox, p_NonAllocStorage,  Transform.rotation, p_LayerMask);
                 break;
             default: //case sphere
                 l_Result = Physics.OverlapSphereNonAlloc(p_Center, p_HitBox.magnitude, p_NonAllocStorage, p_LayerMask);
@@ -479,9 +484,9 @@ public partial class Projectile : FormattedMonoBehaviour
         if (!_isIgnoreObstacle)
         {
             _overLapCollideNumber = CheckCollisionWithCast(CastHitGroup, _halfExtentsForTerrain, PeekedNestPosition, ObstacleTerrainColliderLayerMask,
-                _Transform.position);
+                Transform.position);
             _castHitNumber = CheckCollisionWithOverlap(ColliderGroup, _halfExtentsForTerrain, ObstacleTerrainColliderLayerMask,
-                _Transform.position);
+                Transform.position);
 
             // CASE#1: has been collided on any obstacle.
             if (_castHitNumber > 0 || _overLapCollideNumber > 0)
@@ -504,7 +509,7 @@ public partial class Projectile : FormattedMonoBehaviour
         return false;
     }
 
-    private bool CheckCollisionAboutUnit(Action<CommomActionArgs> p_ActionWhenOccurCollision = null)
+    private bool CheckCollisionAboutUnit(Action<CommomActionArgs> p_ActionWhenOccurCollision = null , bool decreaseHitNum = true)
     {
       if (!_isIgnoreUnit)
         {
@@ -513,8 +518,8 @@ public partial class Projectile : FormattedMonoBehaviour
             CollidedUnitGroup.Clear();
             
             _overLapCollideNumber = CheckCollisionWithCast(CastHitGroup, _halfExtents, PeekedNestPosition, UnitColliderLayerMask,
-                _Transform.position);
-            _castHitNumber = CheckCollisionWithOverlap(ColliderGroup, _halfExtents, UnitColliderLayerMask,_Transform.position);
+                Transform.position);
+            _castHitNumber = CheckCollisionWithOverlap(ColliderGroup, _halfExtents, UnitColliderLayerMask,Transform.position);
             var l_loopCount = Mathf.Min(Mathf.Max(_overLapCollideNumber, _castHitNumber), _maxColliderNumber);
             for (var index = 0; index < l_loopCount; index++)
             {
@@ -555,11 +560,14 @@ public partial class Projectile : FormattedMonoBehaviour
                     .SetMorphable(this)
                 );
 
-                if (_maxNumberOfHitTime > 1)
+                if (!decreaseHitNum)
+                    ExCollidedUnitGroup.Clear();
+                else if (_maxNumberOfHitTime > 1)
                 {
                     _maxNumberOfHitTime--;
                     ExCollidedUnitGroup.Clear();
                 }
+                 
                 return true;
             }
         }
@@ -579,6 +587,7 @@ public partial class Projectile : FormattedMonoBehaviour
         for (var i = 0 ; i < _particleList.Length ; i++)
         {
             _particleList[i].loop = _stackedParticleLoopOriginFlagSet[i];
+            _particleList[i].enableEmission = true;
         }
     }
 
@@ -587,6 +596,7 @@ public partial class Projectile : FormattedMonoBehaviour
         for (var i = 0 ; i < _particleList.Length ; i++)
         {
             _particleList[i].loop = false;
+            _particleList[i].enableEmission = false;
         }
     }
 
@@ -599,7 +609,7 @@ public partial class Projectile : FormattedMonoBehaviour
         #region <Fields>
 
         /* setter property member */
-        public FormattedMonoBehaviour ProjectileToMove;
+        public PreProcessedMonoBehaviour ProjectileToMove;
         public float AnimationDuration { get; private set;}
         public Action<CommomActionArgs,ProjectileAnimationEventArgs> InitAction;
         public Func<CommomActionArgs,ProjectileAnimationEventArgs,Func<float, float, float, float, float>,Vector3> MoveAction;

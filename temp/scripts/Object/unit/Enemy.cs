@@ -33,7 +33,7 @@ public abstract class Enemy : Unit
     [NonSerialized] public Vector3 CampingPosition;
     [NonSerialized] public int AttackCooldownLeft;    
         
-    private FormattedMonoBehaviour _healthBar;
+    private PreProcessedMonoBehaviour _healthBar;
     private Quaternion _rotation;
     private UIEnemyStateView _uiEnemyStateView;
 
@@ -46,11 +46,11 @@ public abstract class Enemy : Unit
     {
         get
         {
-            if (lastHurtingThisUnit != null && lastHurtingThisUnit.activeSelf && lastHurtingThisUnit.State != UnitState.Dead) return lastHurtingThisUnit;
+            if (lastHurtingThisUnit != null && lastHurtingThisUnit.ActiveSelf && lastHurtingThisUnit.State != UnitState.Dead) return lastHurtingThisUnit;
             lastHurtingThisUnit = null;
-            var filteredObjectNumber = Filter.GetTagGroupInRadiusCompareToTag("Player",FocusRadius, FilterCheckedObjectArray,_Transform.position);
+            var filteredObjectNumber = Filter.GetTagGroupInRadiusCompareToTag("Player",FocusRadius,Transform.position, FilteredObjectGroup);
             if (filteredObjectNumber == 0) return null;
-            return (Unit)FilterCheckedObjectArray[0];
+            return (Unit)FilteredObjectGroup[0];
         }
     }
     
@@ -207,7 +207,7 @@ public abstract class Enemy : Unit
             if (IsInAttackRange)
             {
                 SetAngleToDestination(GetNormDirectionToMove(Focus));
-                _Transform.eulerAngles = Vector3.up * AngleToDestination;
+                Transform.eulerAngles = Vector3.up * AngleToDestination;
             }
             // If not satisfied the above condition,
             else
@@ -321,19 +321,7 @@ public abstract class Enemy : Unit
         {
             case Activity.Hunt:
                 // TODO: Move this management statement to hud manager or ui root.            
-                if (_healthBar != null) return;
-                
-                // Distance, this enemy with the focusing target
-                if (Focus == null) return;
-                var distance = Vector3.Distance(GetUnitOrthographicPosition, Focus.GetUnitOrthographicPosition);
-                // @TODO<Carey>: Fix the margin vector3.up to be a detail factor.
-                // Direction, catch the player's location
-                var direction = Focus.GetUnitPosition - GetUnitPosition + Vector3.up;
-
-                var isInBetweenWall =
-                    Physics.Raycast(_Transform.position + Vector3.up, direction, distance, (1 << 1));
-                
-                if (isInBetweenWall) return;               
+                if (_healthBar != null) return;                                      
             
                 _healthBar = ObjectManager.GetInstance.GetObject(ObjectManager.PoolTag.General, 
                     HUDManager.GetInstance.EnemyHealthBarPrefab, null, GameManager.GetInstance.UIRootTransform);
@@ -343,6 +331,7 @@ public abstract class Enemy : Unit
                 // @Temp<Carey>: Replace this with what based on a serialized parameter.
                 UpdateTension();
 
+                _navMeshAgent.enabled = true;
                 break;
             case Activity.Rest:
                 if (IsHadInitialAttackCooldown)
@@ -356,6 +345,7 @@ public abstract class Enemy : Unit
 
                 UnitBoneAnimator.SetTrigger(BoneAnimator.AnimationState.Idle);
 
+                _navMeshAgent.enabled = false;
                 break;
                 
             case Activity.Returntocamp:
@@ -369,6 +359,8 @@ public abstract class Enemy : Unit
                     ObjectManager.RemoveObject(_healthBar);
                     _healthBar = null;
                 }
+
+                _navMeshAgent.enabled = true;
 
                 break;
         }       
@@ -390,7 +382,7 @@ public abstract class Enemy : Unit
         }
         else
         {
-            DistanceTowardPlayer = MathVector.SqrDistance(Focus._Transform.position, GetUnitPosition);
+            DistanceTowardPlayer = MathVector.SqrDistance(Focus.Transform.position, GetUnitPosition);
             if (!_isFocused)
             {           
                 if (_ignoreFocusTime > Mathf.Epsilon)

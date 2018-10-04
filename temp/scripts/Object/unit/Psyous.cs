@@ -27,22 +27,22 @@ public class Psyous : Champion
     private static readonly Vector3 MagmaBall_Range = new Vector3(0.5f, 2.0f, 0.015f);  // (horizon wide, height, vertical wide) Box type
     private static readonly Vector3 FireRain_Range = new Vector3(3.0f, 0.0f, 0.0f);  // (horizon wide, height, vertical wide) Sphere type
     private static readonly Vector3 MagicHand_Range = new Vector3(3.0f, 2.0f, 1.0f);  // (horizon wide, height, vertical wide) Box type
-    private static readonly Vector3 BurningSheild_Range = new Vector3(3.0f, 2.0f, 3.0f);  // (horizon wide, height, vertical wide) Box type
+    private static readonly Vector3 BurningSheild_Range = new Vector3(3.0f, 2.0f, 1.0f);  // (horizon wide, height, vertical wide) Box type
     private static readonly Vector3 Blaze_Range = new Vector3(3.0f, 0.0f, 0.0f);  // (horizon wide, height, vertical wide) Sphere type
     private static readonly Vector3 FireArrow_Range = new Vector3(0.5f, 2.0f, 0.015f);  // (horizon wide, height, vertical wide) Box type
 
     /// cached skill information                             [speed | (int)damage | (int)max_collider | life_time | (int)cooltime]
     private static readonly float[] NormalAction_Info =     { 30.0f,    3.0f,           1f,             1.0f,           1.0f };
     private static readonly float[] FireBall_Info =         { 20.0f,    5.0f,           5f,             5.0f,           1.0f };
-    private static readonly float[] ForceHammer_Info =      { 0.0f,     10.0f,          10f,            1.0f,           1.0f };
+    private static readonly float[] ForceHammer_Info =      { 0.0f,     10.0f,          10f,            5.0f,           1.0f };
     private static readonly float[] MagmaBall_Info =        { 5.0f,     1.0f,           5f,             5.0f,           1.0f };
     private static readonly float[] FireRain_Info =         { 0.0f,     1.0f,           10f,            3.0f,           1.0f };
     private static readonly float[] MagicHand_Info =        { 20.0f,    2.0f,           10f,            5.0f,           1.0f };
-    private static readonly float[] BurningSheild_Info =    { 3.0f,     2.0f,           10f,            5.0f,           1.0f };
+    private static readonly float[] BurningSheild_Info =    { 8.0f,     2.0f,           10f,            2.5f,           1.0f };
     private static readonly float[] Blaze_Info =            { 3.0f,     5.0f,           10f,            3.0f,           1.0f };
     private static readonly float[] FireArrow_Info =        { 30.0f,    5.0f,           1f,             1.5f,           5.0f };
 
-    private static readonly float Blink_Range = 1.5f;
+    private static readonly float Blink_Range = 2.5f;
     private static readonly float Binding_Range = 5.0f;
 
     #endregion </Consts>
@@ -62,7 +62,7 @@ public class Psyous : Champion
         ActionGroupRoot[(int)ActionButtonTrigger.Type.Normal].Add(NormalAction02());
         ActionGroupRoot[(int)ActionButtonTrigger.Type.Normal].Add(NormalAction03());
 
-        ActionGroupRoot[(int)ActionButtonTrigger.Type.Primary].Add(Spell01());
+        ActionGroupRoot[(int)ActionButtonTrigger.Type.Primary].Add(Spell08());
         ActionGroupRoot[(int)ActionButtonTrigger.Type.Secondary].Add(Spell10());
 
         for (var index=0; index < ActionGroupRoot.Count; index++)
@@ -113,12 +113,12 @@ public class Psyous : Champion
 
             var triggerPosition = caster.AttachPoint[(int)AttachPointType.RightHandIndex1].position;
             var direction = other.Candidate == null ?
-                    caster._Transform.TransformDirection(Vector3.forward).normalized
-                    : (new Vector3(other.Candidate._Transform.position.x, triggerPosition.y, other.Candidate._Transform.position.z) - triggerPosition).normalized;
+                    caster.Transform.TransformDirection(Vector3.forward).normalized
+                    : (new Vector3(other.Candidate.Transform.position.x, triggerPosition.y, other.Candidate.Transform.position.z) - triggerPosition).normalized;
 
             K514VfxManager.GetInstance.CastVfx(K514VfxManager.ParticleType.PArrowCylinder, triggerPosition)
                 .SetLifeSpan(.3f)
-                .SetForward(caster._Transform.forward)
+                .SetForward(caster.Transform.forward)
                 .SetScale(1f)
                 .SetTrigger();
 
@@ -184,8 +184,8 @@ public class Psyous : Champion
 
             var triggerPosition = caster.AttachPoint[(int)AttachPointType.RightHandIndex1].position;
             var direction = other.Candidate == null ?
-                    caster._Transform.TransformDirection(Vector3.forward).normalized
-                    : (new Vector3(other.Candidate._Transform.position.x, triggerPosition.y, other.Candidate._Transform.position.z) - triggerPosition).normalized;
+                    caster.Transform.TransformDirection(Vector3.forward).normalized
+                    : (new Vector3(other.Candidate.Transform.position.x, triggerPosition.y, other.Candidate.Transform.position.z) - triggerPosition).normalized;
 
             ProjectileFactory.GetInstance.CreateProjectile(ProjectileFactory.Type.PsyousMagicMissile, caster, NormalAction_Info[(int)Info.life_time], triggerPosition)
                 .SetVelocity(direction * NormalAction_Info[(int)Info.speed])
@@ -248,8 +248,8 @@ public class Psyous : Champion
 
             var triggerPosition = caster.AttachPoint[(int)AttachPointType.RightHandIndex1].position;
             var direction = other.Candidate == null ?
-                    caster._Transform.TransformDirection(Vector3.forward).normalized
-                    : (new Vector3(other.Candidate._Transform.position.x, triggerPosition.y, other.Candidate._Transform.position.z) - triggerPosition).normalized;
+                    caster.Transform.TransformDirection(Vector3.forward).normalized
+                    : (new Vector3(other.Candidate.Transform.position.x, triggerPosition.y, other.Candidate.Transform.position.z) - triggerPosition).normalized;
 
             ProjectileFactory.GetInstance.CreateProjectile(ProjectileFactory.Type.PsyousMagicMissile, caster, NormalAction_Info[(int)Info.life_time], triggerPosition)
                 .SetVelocity(direction * NormalAction_Info[(int)Info.speed])
@@ -329,8 +329,8 @@ public class Psyous : Champion
 
             var triggerPosition = caster.AttachPoint[(int)AttachPointType.LeftHandIndex1].position;
             var direction = other.Candidate == null ?
-                    caster._Transform.TransformDirection(Vector3.forward).normalized
-                    : (new Vector3(other.Candidate._Transform.position.x, triggerPosition.y, other.Candidate._Transform.position.z) - triggerPosition).normalized;
+                    caster.Transform.TransformDirection(Vector3.forward).normalized
+                    : (new Vector3(other.Candidate.Transform.position.x, triggerPosition.y, other.Candidate.Transform.position.z) - triggerPosition).normalized;
 
             K514VfxManager.GetInstance.CastVfx(K514VfxManager.ParticleType.PFire, triggerPosition)
                     .SetLifeSpan(.3f)
@@ -361,6 +361,7 @@ public class Psyous : Champion
                                 subject.AddForce(forceDirection * 10.0f);
                             });
                     }
+                    proj.Remove();
                 })
                 .SetTrigger(true);
 
@@ -397,7 +398,6 @@ public class Psyous : Champion
             {
                 var caster = (Champion)other.Caster;
                 caster.UpdateTension();
-                other.SetCandidate(caster.DetectAndChaseEnemyInRange(7.5f, 0.0f, .0f));
                 caster.UnitBoneAnimator.SetCast("Spell", 1);
             };
         #endregion
@@ -494,8 +494,8 @@ public class Psyous : Champion
 
             var triggerPosition = caster.AttachPoint[(int)AttachPointType.LeftHandIndex1].position;
             var direction = other.Candidate == null ?
-                    caster._Transform.TransformDirection(Vector3.forward).normalized
-                    : (new Vector3(other.Candidate._Transform.position.x, triggerPosition.y, other.Candidate._Transform.position.z) - triggerPosition).normalized;
+                    caster.Transform.TransformDirection(Vector3.forward).normalized
+                    : (new Vector3(other.Candidate.Transform.position.x, triggerPosition.y, other.Candidate.Transform.position.z) - triggerPosition).normalized;
             var fallDirection = direction + new Vector3(0, -4f, 0);
 
             K514VfxManager.GetInstance.CastVfx(K514VfxManager.ParticleType.PFire, triggerPosition)
@@ -515,7 +515,7 @@ public class Psyous : Champion
                 .SetCollidedObstacleAction(arg =>
                 {
                     var proj = (Projectile)arg.MorphObject;
-                    ProjectileFactory.GetInstance.CreateProjectile(ProjectileFactory.Type.PsyousMagmaBall, caster, MagmaBall_Info[(int)Info.life_time], proj._Transform.position)
+                    ProjectileFactory.GetInstance.CreateProjectile(ProjectileFactory.Type.PsyousMagmaBall, caster, MagmaBall_Info[(int)Info.life_time], proj.Transform.position)
                         .SetVelocity(direction * MagmaBall_Info[(int)Info.speed])
                         .SetDirection()
                         .SetMaxColliderNumber((int)MagmaBall_Info[(int)Info.max_collider])
@@ -570,7 +570,6 @@ public class Psyous : Champion
           {
               var caster = (Champion)other.Caster;
               caster.UpdateTension();
-              other.SetCandidate(caster.DetectAndChaseEnemyInRange(7.5f, 0.0f, .0f));
               caster.UnitBoneAnimator.SetCast("Spell", 1);
           };
         #endregion
@@ -588,11 +587,13 @@ public class Psyous : Champion
             var caster = (Champion)other.Caster;
             var triggerPosition = other.CastPosition;
 
-            ProjectileFactory.GetInstance.CreateProjectile(ProjectileFactory.Type.PsyousMagmaBall, caster, FireRain_Info[(int)Info.life_time], triggerPosition)
+            ProjectileFactory.GetInstance.CreateProjectile(ProjectileFactory.Type.PsyousFireRain, caster, FireRain_Info[(int)Info.life_time], triggerPosition)
                 .SetMaxColliderNumber((int)FireRain_Info[(int)Info.max_collider])
                 .SetRemoveDelay(1.0f)
                 .SetProjectileType(Projectile.ProjectileType.Sphere)
                 .SetColliderBox(FireRain_Range)
+                .SetIgnoreObstacle(true)
+                .SetActiveHeartBeat(true)
                 .SetNumberOfHit(3)
                 .SetOnHeartBeatTension(3)
                 .SetOnHeartBeatAction(args =>
@@ -606,10 +607,8 @@ public class Psyous : Champion
                                 subject.AddForce(forceDirection * 2.0f);
                             });
                     }
-                    proj.Remove();
                 })
-                .SetTrigger(true)
-                .SetActiveHeartBeat(true);
+                .SetTrigger(true);
 
 
         };
@@ -659,13 +658,21 @@ public class Psyous : Champion
         eventGroup[(int)UnitEventType.Exit] = (other) =>
         {
             var caster = (Champion)other.Caster;
-            var triggerPosition = caster._Transform.position + ((other.CastPosition - caster._Transform.position).normalized * Blink_Range);
+            var triggerPosition = caster.Transform.position + ((other.CastPosition - caster.Transform.position).normalized * Blink_Range);
             /*
             RaycastHit hit;
-            Physics.Raycast(triggerPosition + new Vector3(0, 5f, 0), -_Transform.up, out hit);
-            caster._Transform.position = hit.point;
+            Physics.Raycast(triggerPosition + new Vector3(0, 5f, 0), -Transform.up, out hit);
+            caster.Transform.position = hit.point;
             */
-            caster._Transform.position = triggerPosition;
+
+            var particle = K514VfxManager.GetInstance.CastVfx(K514VfxManager.ParticleType.PBlink, caster.Transform.position)
+                .SetLifeSpan(3f)
+                .SetForward(other.CastPosition - caster.Transform.position)
+                .SetScale(1f)
+                .SetTrigger();
+
+            caster.Transform.position = triggerPosition;
+            particle.Transform.position = triggerPosition;
 
         };
         #endregion
@@ -711,13 +718,24 @@ public class Psyous : Champion
         eventGroup[(int)UnitEventType.Exit] = (other) =>
         {
             var caster = (Champion)other.Caster;
-            var triggerPosition = caster._Transform.position;
+            var triggerPosition = caster.Transform.position;
 
-            var enemyIterater = Filter.GetTagGroupInRadiusCompareToTag("Enemy", Binding_Range, FilterCheckedObjectArray);
+            var enemyIterater =
+                Filter.GetTagGroupInRadiusCompareToTag("Enemy", Binding_Range, pStorage: FilteredObjectGroup);
+            
+            K514VfxManager.GetInstance.CastVfx(K514VfxManager.ParticleType.PSmog, caster.Transform.position)
+                .SetLifeSpan(3f)
+                .SetScale(1f)
+                .SetTrigger();
 
             while (enemyIterater > 0)
             {
-                Enemy candidate = (Enemy)FilterCheckedObjectArray[--enemyIterater];
+                Enemy candidate = (Enemy)FilteredObjectGroup[--enemyIterater];
+
+                var particle = K514VfxManager.GetInstance.CastVfx(K514VfxManager.ParticleType.PBind, candidate.Transform.position)
+                                         .SetLifeSpan(4f)
+                                         .SetScale(1f)
+                                         .SetTrigger();
 
                 candidate.Hurt(caster, 0, TextureType.Magic, Vector3.zero);
 
@@ -740,6 +758,15 @@ public class Psyous : Champion
                                     args.Candidate.Hurt(caster, 1, TextureType.Magic, Vector3.zero);
                                 }
                     )
+                    .SetAction(CrowdControl.EventType.OnFixedUpdate,
+                                new CrowdControlArgs()
+                                    .SetCaster(caster)
+                                    .SetCandidate(candidate),
+                                (args) =>
+                                {
+                                    particle.Transform.position = args.Candidate.Transform.position;
+                                }
+                    )
                     .SetAction(CrowdControl.EventType.OnTerminate,
                                 new CrowdControlArgs()
                                     .SetCaster(caster)
@@ -750,6 +777,7 @@ public class Psyous : Champion
                                 }
                     )
                     .SetOption(CrowdControl.Option.OverrideAbsolute, true));
+
             }
 
         };
@@ -804,13 +832,15 @@ public class Psyous : Champion
             if (target == null) return;
             if (!isMagicHandGrab)
             {
-                var triggerPosition = target._Transform.position;
-                var grabPosition = caster._Transform.position - caster._Transform.forward + caster._Transform.right + caster._Transform.up;
-
+                var triggerPosition = target.Transform.position;
+                var grabPosition = caster.Transform.position - caster.Transform.forward - caster.Transform.right + caster.Transform.up;
+                
                 var grabVector = grabPosition - triggerPosition;
 
+                var currentAction = CurrentActionStatus;
+
                 target.Hurt(caster, 0, TextureType.Magic, Vector3.zero);
-                target.AddCrowdControl(new CrowdControl(target, CrowdControl.CrowdControlType.Stun, "Stun", (int)MagicHand_Info[(int)Info.life_time]+1, true)
+                target.AddCrowdControl(new CrowdControl(target, CrowdControl.CrowdControlType.Stun, "Stun", (int)MagicHand_Info[(int)Info.life_time]*2, true)
                     .SetAction(CrowdControl.EventType.OnBirth,
                                 new CrowdControlArgs()
                                 .SetCandidate(target)
@@ -829,7 +859,7 @@ public class Psyous : Champion
                                     args.Candidate.UnitBoneAnimator.UnityAnimator.speed = 1.0f;
                                 }
                 ));
-                ProjectileFactory.GetInstance.CreateProjectile(ProjectileFactory.Type.HuntressArrowBlack, caster, 0.2f, triggerPosition)
+                ProjectileFactory.GetInstance.CreateProjectile(ProjectileFactory.Type.PsyousMagicHand, caster, 0.2f, triggerPosition)
                     .SetVelocity(grabVector * 5)
                     .SetProjectileType(Projectile.ProjectileType.Point)
                     .SetDirection()
@@ -839,13 +869,13 @@ public class Psyous : Champion
                     .SetFixedUpdateAction((eventArgs) =>
                     {
                         var proj = (Projectile)eventArgs.MorphObject;
-                        target._Transform.position = proj._Transform.position;
+                        target.Transform.position = proj.Transform.position;
                     })
                     .SetExpiredAction(args =>
                     {
                         target.gameObject.tag = "Projectile";
                         target.gameObject.layer = 12;
-                        grabProjectile = ProjectileFactory.GetInstance.CreateProjectile(ProjectileFactory.Type.HuntressArrowBlack, caster, (int)MagicHand_Info[(int)Info.life_time], grabPosition)
+                        grabProjectile = ProjectileFactory.GetInstance.CreateProjectile(ProjectileFactory.Type.PsyousMagicHand, caster, (int)MagicHand_Info[(int)Info.life_time], grabPosition)
                             .SetProjectileType(Projectile.ProjectileType.Box)
                             .SetMaxColliderNumber((int)MagicHand_Info[(int)Info.max_collider])
                             .SetColliderBox(MagicHand_Range)
@@ -865,9 +895,12 @@ public class Psyous : Champion
                                         target.gameObject.tag = "Enemy";
                                         target.gameObject.layer = 11;
                                         proj.Remove();
-                                        target.CrowdControlGroup.First().OnTerminate();
+                                        if (target.CrowdControlGroup.Count !=0)
+                                        {
+                                            target.CrowdControlGroup.First().OnTerminate();
+                                        }
                                         isMagicHandGrab = false;
-                                        caster.CurrentActionStatus.SetCooldown((int)MagicHand_Info[(int)Info.cooltime]);
+                                        currentAction.SetCooldown((int)MagicHand_Info[(int)Info.cooltime]);
                                         grabProjectile = null;
                                     }
                                 }
@@ -875,31 +908,38 @@ public class Psyous : Champion
                             .SetFixedUpdateAction((eventArgs) =>
                             {
                                 var proj = (Projectile)eventArgs.MorphObject;
-                                target._Transform.position = proj._Transform.position;
+                                proj.Transform.position = caster.Transform.position - caster.Transform.forward - caster.Transform.right + caster.Transform.up;
+                                target.Transform.position = proj.Transform.position;
                             })
                             .SetIgnoreObstacle(true)
                             .SetExpiredAction(expired =>
                             {
                                 target.gameObject.tag = "Enemy";
                                 target.gameObject.layer = 11;
-                                target.CrowdControlGroup.First().OnTerminate();
+                                if (target.CrowdControlGroup.Count != 0)
+                                {
+                                    target.CrowdControlGroup.First().OnTerminate();
+                                }
                                 isMagicHandGrab = false;
-                                caster.CurrentActionStatus.SetCooldown((int)MagicHand_Info[(int)Info.cooltime]);
+                                currentAction.SetCooldown((int)MagicHand_Info[(int)Info.cooltime]);
                                 grabProjectile = null;
                             })
                             .SetTrigger(true);
-
                     });
                 
-                  target._Transform.position = grabPosition;
                 isMagicHandGrab = true;
             }
             else
             {
-                var triggerPosition = grabProjectile._Transform.position;
-                var targetTransform = target._Transform;
+                var triggerPosition = grabProjectile.Transform.position;
+                var targetTransform = target.Transform;
 
                 grabProjectile
+                    .SetFixedUpdateAction((eventArgs) =>
+                    {
+                        var proj = (Projectile)eventArgs.MorphObject;
+                        target.Transform.position = proj.Transform.position;
+                    })
                     .SetEnqueuePoint(triggerPosition)
                     .SetEnqueuePoint(triggerPosition + targetTransform.right * 5)
                     .SetEnqueuePoint(targetTransform.position + targetTransform.right * 5)
@@ -908,7 +948,12 @@ public class Psyous : Champion
                     .SetEnqueuePoint(targetTransform.position - targetTransform.right * 5)
                     .SetEnqueuePoint(triggerPosition - targetTransform.right * 5)
                     .SetEnqueuePoint(triggerPosition)
-                    .SetBezier(4, 0.3f)
+                    .SetBezier(4, 0.3f, p_ExpiredAction: (eventArgs, projectile) =>
+                    {
+                        var proj = (Projectile)eventArgs.MorphObject;
+                        proj.Transform.position = caster.Transform.position - caster.Transform.forward - caster.Transform.right + caster.Transform.up;
+                        target.Transform.position = proj.Transform.position;
+                    })
                     .SetBezier(4, 0.3f)
                     .SetTrigger(true);
 
@@ -966,8 +1011,8 @@ public class Psyous : Champion
 
             var triggerPosition = caster.AttachPoint[(int)AttachPointType.LeftHandIndex1].position;
             var direction = other.Candidate == null ?
-                    caster._Transform.TransformDirection(Vector3.forward).normalized
-                    : (new Vector3(other.Candidate._Transform.position.x, triggerPosition.y, other.Candidate._Transform.position.z) - triggerPosition).normalized;
+                    caster.Transform.TransformDirection(Vector3.forward).normalized
+                    : (new Vector3(other.Candidate.Transform.position.x, triggerPosition.y, other.Candidate.Transform.position.z) - triggerPosition).normalized;
 
             K514VfxManager.GetInstance.CastVfx(K514VfxManager.ParticleType.PFire, triggerPosition)
                     .SetLifeSpan(.3f)
@@ -981,24 +1026,37 @@ public class Psyous : Champion
                     .SetTrigger();
 
 
-            ProjectileFactory.GetInstance.CreateProjectile(ProjectileFactory.Type.PsyousMagmaBall, caster, BurningSheild_Info[(int)Info.life_time], triggerPosition)
+            ProjectileFactory.GetInstance.CreateProjectile(ProjectileFactory.Type.PsyousFireShield, caster, BurningSheild_Info[(int)Info.life_time], triggerPosition)
                 .SetVelocity(direction * BurningSheild_Info[(int)Info.speed])
                 .SetDirection()
                 .SetMaxColliderNumber((int)BurningSheild_Info[(int)Info.max_collider])
                 .SetProjectileType(Projectile.ProjectileType.Box)
                 .SetColliderBox(BurningSheild_Range)
-                .SetNumberOfHit(4)
-                .SetOnHeartBeatTension(4)
+                .SetNumberOfHit(3)
+                .SetOnHeartBeatTension(3)
                 .SetOnHeartBeatAction(args =>
                 {
                     var subProj = (Projectile)args.MorphObject;
+
+                    K514VfxManager.GetInstance.CastVfx(K514VfxManager.ParticleType.PFireShield, subProj.Transform.position)
+                        .SetLifeSpan(.3f)
+                        .SetForward(subProj.Transform.forward)
+                        .SetScale(1f)
+                        .SetTrigger();
                     foreach (var collidedUnit in subProj.CollidedUnitGroup)
                     {
                         collidedUnit.Hurt(subProj.Caster, (int)BurningSheild_Info[(int)Info.damage], TextureType.Heavy, subProj.Direction,
                             (trigger, subject, forceDirection) =>
                             {
-                                subject.AddForce(forceDirection * 6.0f);
                             });
+                    }
+                })
+                .SetFixedUpdateAction(args =>
+                {
+                    var subProj = (Projectile)args.MorphObject;
+                    foreach (var collidedUnit in subProj.CollidedUnitGroup)
+                    {
+                        collidedUnit.Transform.position += subProj.Transform.forward * 0.3f;
                     }
                 })
                 .SetActiveHeartBeat(true)
@@ -1061,8 +1119,8 @@ public class Psyous : Champion
             if (target == null) return;
 
 
-            var triggerPosition = target._Transform.position;
-            var grabPosition = caster._Transform.position - caster._Transform.forward + caster._Transform.right + caster._Transform.up;
+            var triggerPosition = target.Transform.position;
+            var grabPosition = caster.Transform.position - caster.Transform.forward + caster.Transform.right + caster.Transform.up;
 
             var grabVector = grabPosition - triggerPosition;
 
@@ -1086,8 +1144,8 @@ public class Psyous : Champion
                                 args.Candidate.UnitBoneAnimator.UnityAnimator.speed = 1.0f;
                             }
             ));
-            ProjectileFactory.GetInstance.CreateProjectile(ProjectileFactory.Type.PsyousFireBall, caster, 0.15f, triggerPosition)
-                .SetVelocity(grabVector * 5)
+            ProjectileFactory.GetInstance.CreateProjectile(ProjectileFactory.Type.PsyousFireBall, caster, 0.10f, triggerPosition)
+                .SetVelocity(grabVector * 6)
                 .SetProjectileType(Projectile.ProjectileType.Point)
                 .SetDirection()
                 .SetIgnoreUnit(true)
@@ -1096,18 +1154,18 @@ public class Psyous : Champion
                 .SetFixedUpdateAction((eventArgs) =>
                 {
                     var proj = (Projectile)eventArgs.MorphObject;
-                    target._Transform.position = proj._Transform.position;
+                    target.Transform.position = proj.Transform.position;
                 })
                 .SetExpiredAction(args =>
                 {
                     target.gameObject.tag = "Projectile";
                     target.gameObject.layer = 12;
-                    grabPosition = ((Projectile)args.MorphObject)._Transform.position;
+                    grabPosition = ((Projectile)args.MorphObject).Transform.position;
                     ProjectileFactory.GetInstance.CreateProjectile(ProjectileFactory.Type.PsyousFireBall, caster, (int)Blaze_Info[(int)Info.life_time], grabPosition)
                         .SetCollidedObstacleAction(temp =>
                         {
                             var projectileUnit = (Projectile)temp.MorphObject;
-                            ProjectileFactory.GetInstance.CreateProjectile(ProjectileFactory.Type.PsyousForceHammer, caster, 0.2f, projectileUnit._Transform.position)
+                            ProjectileFactory.GetInstance.CreateProjectile(ProjectileFactory.Type.Boom, caster, 0.2f, projectileUnit.Transform.position)
                                 .SetRemoveDelay(2.0f)
                                 .SetProjectileType(Projectile.ProjectileType.Sphere)
                                 .SetMaxColliderNumber((int)Blaze_Info[(int)Info.max_collider])
@@ -1136,13 +1194,13 @@ public class Psyous : Champion
                         .SetFixedUpdateAction((eventArgs) =>
                         {
                             var proj = (Projectile)eventArgs.MorphObject;
-                            target._Transform.position = proj._Transform.position;
+                            target.Transform.position = proj.Transform.position;
                         })
                         .SetEnqueuePoint(grabPosition)
                         .SetEnqueuePoint(grabPosition + Vector3.up * 4)
                         .SetEnqueuePoint(other.CastPosition + Vector3.up * 4)
                         .SetEnqueuePoint(other.CastPosition)
-                        .SetBezier(4, 0.8f)
+                        .SetBezier(4, 0.6f)
                         .SetTrigger(true);
                 });          
         };
@@ -1191,16 +1249,16 @@ public class Psyous : Champion
             var caster = (Champion)other.Caster;
             var triggerPosition = caster.AttachPoint[(int)AttachPointType.RightHandIndex1].position;
             var direction = other.Candidate == null ?
-                    caster._Transform.TransformDirection(Vector3.forward).normalized
-                    : (new Vector3(other.Candidate._Transform.position.x, triggerPosition.y, other.Candidate._Transform.position.z) - triggerPosition).normalized;
+                    caster.Transform.TransformDirection(Vector3.forward).normalized
+                    : (new Vector3(other.Candidate.Transform.position.x, triggerPosition.y, other.Candidate.Transform.position.z) - triggerPosition).normalized;
 
             K514VfxManager.GetInstance.CastVfx(K514VfxManager.ParticleType.PArrowCylinder, triggerPosition)
                 .SetLifeSpan(.3f)
-                .SetForward(caster._Transform.forward)
+                .SetForward(caster.Transform.forward)
                 .SetScale(1f)
                 .SetTrigger();
 
-            ProjectileFactory.GetInstance.CreateProjectile(ProjectileFactory.Type.PsyousMagicMissile, caster, FireArrow_Info[(int)Info.life_time], triggerPosition)
+            ProjectileFactory.GetInstance.CreateProjectile(ProjectileFactory.Type.PsyousFireArrow, caster, FireArrow_Info[(int)Info.life_time], triggerPosition)
                 .SetVelocity(direction * FireArrow_Info[(int)Info.speed])
                 .SetDirection()
                 .SetColliderBox(FireArrow_Range)
@@ -1223,6 +1281,7 @@ public class Psyous : Champion
                 .SetTrigger(true);
 
             caster.CurrentActionStatus.CurrentStack--;
+            caster.CurrentActionStatus.SetCooldown(1);
         };
         #endregion
 
@@ -1339,8 +1398,8 @@ public class Psyous : Champion
 
             var triggerPosition = lChampion.AttachPoint[(int) AttachPointType.RightHandIndex1].position;
             var direction = other.Candidate == null ?
-                    lChampion._Transform.TransformDirection(Vector3.forward).normalized
-                    : (new Vector3(other.Candidate._Transform.position.x, triggerPosition.y, other.Candidate._Transform.position.z) - triggerPosition).normalized;
+                    lChampion.Transform.TransformDirection(Vector3.forward).normalized
+                    : (new Vector3(other.Candidate.Transform.position.x, triggerPosition.y, other.Candidate.Transform.position.z) - triggerPosition).normalized;
 
             ProjectileManager.GetInstance.CreateProjectile(ProjectileManager.Type.PsyousMagicMissile, lChampion, NormalAction_Info[(int)Info.life_time], triggerPosition)
                 .SetVelocity(direction * NormalAction_Info[(int)Info.speed])
@@ -1420,8 +1479,8 @@ public class Psyous : Champion
             
             var triggerPosition = lChampion.AttachPoint[(int)AttachPointType.RightHandIndex1].position;
             var direction = other.Candidate == null ?
-                    lChampion._Transform.TransformDirection(Vector3.forward).normalized
-                    : (new Vector3(other.Candidate._Transform.position.x, triggerPosition.y, other.Candidate._Transform.position.z) - triggerPosition).normalized;
+                    lChampion.Transform.TransformDirection(Vector3.forward).normalized
+                    : (new Vector3(other.Candidate.Transform.position.x, triggerPosition.y, other.Candidate.Transform.position.z) - triggerPosition).normalized;
 
             ProjectileManager.GetInstance.CreateProjectile(ProjectileManager.Type.PsyousMagicMissile, lChampion, NormalAction_Info[(int)Info.life_time], triggerPosition)
                 .SetVelocity(direction * NormalAction_Info[(int)Info.speed])
@@ -1501,8 +1560,8 @@ public class Psyous : Champion
 
             var triggerPosition = lChampion.AttachPoint[(int)AttachPointType.RightHandIndex1].position;
             var direction = other.Candidate == null ?
-                    lChampion._Transform.TransformDirection(Vector3.forward).normalized
-                    : (new Vector3(other.Candidate._Transform.position.x, triggerPosition.y, other.Candidate._Transform.position.z) - triggerPosition).normalized;
+                    lChampion.Transform.TransformDirection(Vector3.forward).normalized
+                    : (new Vector3(other.Candidate.Transform.position.x, triggerPosition.y, other.Candidate.Transform.position.z) - triggerPosition).normalized;
 
             ProjectileManager.GetInstance.CreateProjectile(ProjectileManager.Type.PsyousMagicMissile, lChampion, NormalAction_Info[(int)Info.life_time], triggerPosition)
                 .SetVelocity(direction * NormalAction_Info[(int)Info.speed])
@@ -1600,8 +1659,8 @@ public class Psyous : Champion
 
             var triggerPosition = lChampion.AttachPoint[(int)AttachPointType.LeftHandIndex1].position;
             var direction = other.Candidate == null ?
-                    lChampion._Transform.TransformDirection(Vector3.forward).normalized
-                    : (new Vector3(other.Candidate._Transform.position.x, triggerPosition.y, other.Candidate._Transform.position.z) - triggerPosition).normalized;
+                    lChampion.Transform.TransformDirection(Vector3.forward).normalized
+                    : (new Vector3(other.Candidate.Transform.position.x, triggerPosition.y, other.Candidate.Transform.position.z) - triggerPosition).normalized;
 
             K514VfxManager.GetInstance.CastVfx(K514VfxManager.ParticleType.PFire, triggerPosition)
                     .SetLifeSpan(.3f)
@@ -1694,7 +1753,7 @@ public class Psyous : Champion
             var lChampion = (Champion)other.Caster;
             var triggerPosition = other.Candidate==null?
                 lChampion.AttachPoint[(int)AttachPointType.LeftHandIndex1].position
-                : other.Candidate._Transform.position;
+                : other.Candidate.Transform.position;
 
             K514VfxManager.GetInstance.CastVfx(K514VfxManager.ParticleType.PBlast, triggerPosition)
                     .SetLifeSpan(.3f)
@@ -1785,8 +1844,8 @@ public class Psyous : Champion
 
             var triggerPosition = lChampion.AttachPoint[(int)AttachPointType.LeftHandIndex1].position;
             var direction = other.Candidate == null ?
-                    lChampion._Transform.TransformDirection(Vector3.forward).normalized
-                    : (new Vector3(other.Candidate._Transform.position.x, triggerPosition.y, other.Candidate._Transform.position.z) - triggerPosition).normalized;
+                    lChampion.Transform.TransformDirection(Vector3.forward).normalized
+                    : (new Vector3(other.Candidate.Transform.position.x, triggerPosition.y, other.Candidate.Transform.position.z) - triggerPosition).normalized;
             var fallDirection = direction + new Vector3(0, -4f, 0);
 
             K514VfxManager.GetInstance.CastVfx(K514VfxManager.ParticleType.PFire, triggerPosition)
@@ -1806,7 +1865,7 @@ public class Psyous : Champion
                 .SetCollidedObstacleAction(arg =>
                 {
                     var proj = (Projectile)arg.MorphObject;
-                    ProjectileManager.GetInstance.CreateProjectile(ProjectileManager.Type.PsyousMagmaBall, lChampion, MagmaBall_Info[(int)Info.life_time], proj._Transform.position)
+                    ProjectileManager.GetInstance.CreateProjectile(ProjectileManager.Type.PsyousMagmaBall, lChampion, MagmaBall_Info[(int)Info.life_time], proj.Transform.position)
                         .SetVelocity(direction * MagmaBall_Info[(int)Info.speed])
                         .SetDirection()
                         .SetMaxColliderNumber((int)MagmaBall_Info[(int)Info.max_collider])
@@ -1892,7 +1951,7 @@ public class Psyous : Champion
             var lChampion = (Champion)other.Caster;
             var triggerPosition = other.Candidate == null ?
                 lChampion.AttachPoint[(int)AttachPointType.LeftHandIndex1].position
-                : other.Candidate._Transform.position;
+                : other.Candidate.Transform.position;
 
             ProjectileManager.GetInstance.CreateProjectile(ProjectileManager.Type.PsyousMagmaBall, lChampion, FireRain_Info[(int)Info.life_time], triggerPosition)
                 .SetMaxColliderNumber((int)FireRain_Info[(int)Info.max_collider])
@@ -1973,11 +2032,11 @@ public class Psyous : Champion
         eventGroup[(int)EventInfo.Exit] = (other) =>
         {
             var lChampion = (Champion)other.Caster;
-            var triggerPosition = lChampion._Transform.position + (lChampion._Transform.forward * Blink_Range);
+            var triggerPosition = lChampion.Transform.position + (lChampion.Transform.forward * Blink_Range);
 
             RaycastHit hit;
-            Physics.Raycast(triggerPosition + new Vector3(0, 5f ,0), -_Transform.up,out hit);
-            _Transform.position = hit.point;
+            Physics.Raycast(triggerPosition + new Vector3(0, 5f ,0), -Transform.up,out hit);
+            Transform.position = hit.point;
             
             lChampion.ResetSpellColliderActive();
         };
@@ -2035,7 +2094,7 @@ public class Psyous : Champion
         eventGroup[(int)EventInfo.Exit] = (other) =>
         {
             var lChampion = (Champion)other.Caster;
-            var triggerPosition = lChampion._Transform.position;
+            var triggerPosition = lChampion.Transform.position;
 
             var enemyIterater = Filter.GetTagGroupInRadiusCompareToTag("Enemy", Binding_Range, FilterCheckedObjectArray);
 
@@ -2142,8 +2201,8 @@ public class Psyous : Champion
             if (target == null) return;
             if (!isMagicHandGrab)
             {
-                var triggerPosition = target._Transform.position;
-                var grabPosition = lChampion._Transform.position - lChampion._Transform.forward + lChampion._Transform.right + lChampion._Transform.up;
+                var triggerPosition = target.Transform.position;
+                var grabPosition = lChampion.Transform.position - lChampion.Transform.forward + lChampion.Transform.right + lChampion.Transform.up;
 
                 var grabVector = grabPosition - triggerPosition;
 
@@ -2215,13 +2274,13 @@ public class Psyous : Champion
                     });
 
                 //merge후 fixedupdate 기반으로 따라다니게만듬
-                target._Transform.position = grabPosition;
+                target.Transform.position = grabPosition;
                 isMagicHandGrab = true;
             }
             else
             {
-                var triggerPosition = grabedUnit._Transform.position;
-                var targetTransform = target._Transform;
+                var triggerPosition = grabedUnit.Transform.position;
+                var targetTransform = target.Transform;
                 
                 grabedUnit
                     .SetEnqueuePoint(triggerPosition)
@@ -2301,8 +2360,8 @@ public class Psyous : Champion
 
             var triggerPosition = lChampion.AttachPoint[(int)AttachPointType.LeftHandIndex1].position;
             var direction = other.Candidate == null ?
-                    lChampion._Transform.TransformDirection(Vector3.forward).normalized
-                    : (new Vector3(other.Candidate._Transform.position.x, triggerPosition.y, other.Candidate._Transform.position.z) - triggerPosition).normalized;
+                    lChampion.Transform.TransformDirection(Vector3.forward).normalized
+                    : (new Vector3(other.Candidate.Transform.position.x, triggerPosition.y, other.Candidate.Transform.position.z) - triggerPosition).normalized;
 
             K514VfxManager.GetInstance.CastVfx(K514VfxManager.ParticleType.PFire, triggerPosition)
                     .SetLifeSpan(.3f)

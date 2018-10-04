@@ -67,14 +67,14 @@ public partial class Projectile{
 
     public Projectile SetDirection(Vector3 direction)
     {
-        _Transform.forward = direction.normalized;
+        Transform.forward = direction.normalized;
 
         return this;
     }
     
     public Projectile SetDirection()
     {
-        if(Velocity != Vector3.zero) _Transform.forward = Velocity.normalized;
+        if(Velocity != Vector3.zero) Transform.forward = Velocity.normalized;
 
         return this;
     }
@@ -408,7 +408,7 @@ public partial class Projectile{
                 return proj.CopiedBezierPointSet[0];
             }
             ,p_Duration
-            ,pPointNumber
+            ,pPointNumber + 1
             ,false
             ,p_InitAction
             ,p_ExpiredAction
@@ -439,13 +439,13 @@ public partial class Projectile{
             {
                 var proj = (Projectile) customArgs.MorphObject;
                 var rotationPivot = projectileAnimationEventArgs.VariableUseFlag ? Vector3.up : Vector3.down;
-                var lastPosition = proj._Transform.position;
+                var lastPosition = proj.Transform.position;
                 var tuple3 = proj._moveActionSequenceValueSet[1];
-                proj._Transform.RotateAround(proj._moveActionSequenceValueSet[0],rotationPivot,tuple3.x*Time.fixedDeltaTime);
-                var result = proj._Transform.position;
-                proj._Transform.position = lastPosition;
+                proj.Transform.RotateAround(proj._moveActionSequenceValueSet[0],rotationPivot,tuple3.x*Time.fixedDeltaTime);
+                var result = proj.Transform.position;
+                proj.Transform.position = lastPosition;
                 result += Vector3.up * tuple3.y * Time.fixedDeltaTime;
-                var directionToCaster = (proj._moveActionSequenceValueSet[0] - proj._Transform.position).normalized;
+                var directionToCaster = (proj._moveActionSequenceValueSet[0] - proj.Transform.position).normalized;
                 return result + directionToCaster * tuple3.z * Time.fixedDeltaTime;
             }
             ,p_Duration
@@ -475,10 +475,10 @@ public partial class Projectile{
         p_InitAction += (customArgs,projectileAnimationEventArgs) =>
         {
             var proj = (Projectile) customArgs.MorphObject;
-            proj._moveActionSequenceValueSet[0] = proj._Transform.position;
+            proj._moveActionSequenceValueSet[0] = proj.Transform.position;
             var perpVec = Vector3.Cross(proj.Direction, Vector3.up).normalized;
-            proj._Transform.position += perpVec * proj._moveActionSequenceValueSet[2].x;
-            proj._Transform.RotateAround(proj._moveActionSequenceValueSet[0],proj.Direction,proj._moveActionSequenceValueSet[1].y);
+            proj.Transform.position += perpVec * proj._moveActionSequenceValueSet[2].x;
+            proj.Transform.RotateAround(proj._moveActionSequenceValueSet[0],proj.Direction,proj._moveActionSequenceValueSet[1].y);
         };
         
         SetEnqueuePoint(Vector3.zero)
@@ -488,18 +488,18 @@ public partial class Projectile{
                 {
                     var proj = (Projectile) customArgs.MorphObject;
                     var rotationPivot = projectileAnimationEventArgs.VariableUseFlag ? proj.Direction : proj.Direction * -1f;
-                    var lastPosition = proj._Transform.position;
+                    var lastPosition = proj.Transform.position;
                     var tuple3 = proj._moveActionSequenceValueSet[1];
                     proj._moveActionSequenceValueSet[0] = proj.SimulateDefaultLinearProgressKinematic(proj._moveActionSequenceValueSet[0]);
-                    proj._Transform.RotateAround(proj._moveActionSequenceValueSet[0],rotationPivot,tuple3.x*Time.fixedDeltaTime);
-                    proj._Transform.position = proj.DefaultLinearProgressKinematic();
-                    var result = proj._Transform.position;
-                    proj._Transform.position = lastPosition;
-                    var directionToCaster = (proj._moveActionSequenceValueSet[0] - proj._Transform.position).normalized;
+                    proj.Transform.RotateAround(proj._moveActionSequenceValueSet[0],rotationPivot,tuple3.x*Time.fixedDeltaTime);
+                    proj.Transform.position = proj.DefaultLinearProgressKinematic();
+                    var result = proj.Transform.position;
+                    proj.Transform.position = lastPosition;
+                    var directionToCaster = (proj._moveActionSequenceValueSet[0] - proj.Transform.position).normalized;
                     return result + directionToCaster * tuple3.z * Time.fixedDeltaTime;
                 }
                 ,p_Duration
-                ,2
+                ,3
                 ,p_IsClockWise
                 ,p_InitAction
                 ,p_ExpiredAction);
@@ -511,7 +511,7 @@ public partial class Projectile{
         Action<CommomActionArgs,ProjectileAnimationEventArgs> p_InitAction = null, Action<CommomActionArgs,ProjectileAnimationEventArgs> p_ExpiredAction = null
         , Func<float,float,float,float,float> p_LerpFunction = null)
     {
-
+        
         SetChaseTarget(p_ChaseTarget).
         SetUpdateAction( (customArgs,projectileAnimationEventArgs,lerpFunction) =>
                 {
@@ -521,12 +521,12 @@ public partial class Projectile{
 
                     if (p_LerpFunction == null)
                     {
-                        return K514MathManager.LinearLerp(proj._Transform.position, proj._chasingTarget.position,
+                        return K514MathManager.LinearLerp(proj.Transform.position, proj._chasingTarget.position,
                             elapsed, reversedDuration);
                     }
                     else
                     {
-                        var p_From = proj._Transform.position;
+                        var p_From = proj.Transform.position;
                         var p_To = proj._chasingTarget.position;
                         var distance = p_To - p_From;
                         return new Vector3(
@@ -537,7 +537,7 @@ public partial class Projectile{
                     }
                 }
                 ,p_Duration
-                ,2
+                ,0
                 ,false
                 ,p_InitAction
                 ,p_ExpiredAction
@@ -550,6 +550,16 @@ public partial class Projectile{
         Action<CommomActionArgs,ProjectileAnimationEventArgs> p_InitAction = null, Action<CommomActionArgs,ProjectileAnimationEventArgs> p_ExpiredAction = null
         , Func<float,float,float,float,float> p_LerpFunction = null)
     {
+        p_ExpiredAction += (customArgs,projectileAnimationEventArgs) =>
+        {
+            var proj = (Projectile) customArgs.MorphObject;
+            var cnt = projectileAnimationEventArgs.NumberToReadQueue;
+            while (cnt > 0)
+            {
+                proj._moveActionSequenceValueSet.RemoveAt(0);
+                cnt--;
+            }
+        };
 
         SetEnqueuePoint(p_ChaseTarget)
             .SetUpdateAction( (customArgs,projectileAnimationEventArgs,lerpFunction) =>
@@ -560,12 +570,12 @@ public partial class Projectile{
 
                     if (p_LerpFunction == null)
                     {
-                        return K514MathManager.LinearLerp(proj._Transform.position, proj._moveActionSequenceValueSet[0],
+                        return K514MathManager.LinearLerp(proj.Transform.position, proj._moveActionSequenceValueSet[0],
                             elapsed, reversedDuration);
                     }
                     else
                     {
-                        var p_From = proj._Transform.position;
+                        var p_From = proj.Transform.position;
                         var p_To = proj._moveActionSequenceValueSet[0];
                         var distance = p_To - p_From;
                         return new Vector3(
@@ -576,7 +586,7 @@ public partial class Projectile{
                     }
                 }
                 ,p_Duration
-                ,2
+                ,1
                 ,false
                 ,p_InitAction
                 ,p_ExpiredAction

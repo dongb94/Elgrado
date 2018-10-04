@@ -6,7 +6,7 @@ public class ProjectileFactory : Singleton<ProjectileFactory>
 
     #region <Fields>
 
-    [SerializeField] private List<FormattedMonoBehaviour> _projectileObjectGroup;
+    [SerializeField] private List<PreProcessedMonoBehaviour> _projectileObjectGroup;
     private Transform _transform;
 
     #endregion </Fields>
@@ -25,6 +25,11 @@ public class ProjectileFactory : Singleton<ProjectileFactory>
         PsyousFireBall,
         PsyousMagmaBall,
         PsyousForceHammer,
+        PsyousFireRain,
+        PsyousMagicHand,
+        Boom,
+        PsyousFireShield,
+        PsyousFireArrow,
         Count
     }
 
