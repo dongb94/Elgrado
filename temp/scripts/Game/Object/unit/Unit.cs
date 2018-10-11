@@ -31,8 +31,17 @@ public abstract class Unit : PreProcessedMonoBehaviour, IBoneAnimatorCallback
     /* status : hp, mass */
     [Range(1, 50000)] public int MaximumHealthPoint;    
     [Range(.01f, float.MaxValue)] public float Mass; 
-    public int CurrentHealthPoint { get; protected set; }
+    public int CurrentHealthPoint
+    {
+        get { return _healthPoint; }
+        protected set
+        {            
+            _healthPoint = value;
+            OnHealthPointAdjust();
+        }
+    }
     public bool Invincible { get; protected set; }
+    private int _healthPoint;
     
     /* Move Speed */
     public float MovementSpeed;
@@ -64,10 +73,7 @@ public abstract class Unit : PreProcessedMonoBehaviour, IBoneAnimatorCallback
 
     /* Unit Index circle */
     private K514UnitFocusCircle _mFocusCircle;
-    
-    /* NavMesh Agent */
-    protected NavMeshAgent _navMeshAgent;
-        
+
     /* Dynamic Material Property */
     [NonSerialized]public K514MaterialApplier MaterialApplier;
 
@@ -81,6 +87,12 @@ public abstract class Unit : PreProcessedMonoBehaviour, IBoneAnimatorCallback
     /* Deprecated : Trail Generator */
     protected K514TrailGenerator[] UnitSpellTrailEffectGroup;    
 
+    /* Spell Hyper Parameter */
+    [NonSerialized]public SpellHyperParameter[] hyperParameterSet;
+
+    /* NavMesh Agent */
+    protected NavMeshAgent _navMeshAgent;
+    
     /* etcetera */
     [SerializeField] public Transform[] AttachPoint;
     public CharacterController Controller { get; protected set; }
@@ -109,6 +121,7 @@ public abstract class Unit : PreProcessedMonoBehaviour, IBoneAnimatorCallback
         Random
     }
 
+    
     public enum UnitEventType
     {
         Initialize,
@@ -148,6 +161,11 @@ public abstract class Unit : PreProcessedMonoBehaviour, IBoneAnimatorCallback
         Magic,       // magic armor                :        magic arms
         Count
     }
+    
+    public enum HyperParameterOfSpell
+    {
+        NormalAttack01, NormalAttack02, NormalAttack03, Spell01, Spell02, Spell03, Spell04, Spell05, Spell06, Spell07, Spell08, Spell09, Spell10, End
+    }
 
     #endregion </Enums>
 
@@ -160,7 +178,6 @@ public abstract class Unit : PreProcessedMonoBehaviour, IBoneAnimatorCallback
     {  
         Controller = GetComponent<CharacterController>();
         UnitBoneAnimator = GetComponent<HumanBoneAnimator>();
-        Controller = GetComponent<CharacterController>();
         UnitSpellTrailEffectGroup = GetComponents<K514TrailGenerator>();
         MaterialApplier = GetComponent<K514MaterialApplier>();
         CrowdControlGroup = new List<CrowdControl>();
@@ -170,6 +187,7 @@ public abstract class Unit : PreProcessedMonoBehaviour, IBoneAnimatorCallback
         CurrentHealthPoint = MaximumHealthPoint;
         Mass = 1f / Mass;
         CastSpeed = 1.0f;
+        hyperParameterSet = new SpellHyperParameter[(int) HyperParameterOfSpell.End];
     }
 
     protected virtual void OnDisable()
@@ -208,7 +226,6 @@ public abstract class Unit : PreProcessedMonoBehaviour, IBoneAnimatorCallback
     {        
         // <K514>: disable collider not to block other unit when died
         Controller.enabled = false;
-        if(_navMeshAgent != null) _navMeshAgent.enabled = false;
         
         // <Carey>: Exception Handling for a node removal issue with this top-down iterator.
         for (var crowdControlIndex = CrowdControlGroup.Count - 1; crowdControlIndex >= 0; --crowdControlIndex)
@@ -252,6 +269,7 @@ public abstract class Unit : PreProcessedMonoBehaviour, IBoneAnimatorCallback
     /// Callback from <see cref="BoneAnimator"/>.
     /// </summary>
     public abstract void OnCastAnimationEnd();       
+    public abstract void OnCastAnimationCleanUp();       
 
     public override void OnCreated()
     {
@@ -270,25 +288,14 @@ public abstract class Unit : PreProcessedMonoBehaviour, IBoneAnimatorCallback
     {
     }
 
+    public virtual void OnHealthPointAdjust()
+    {
+        
+    }
+
     #endregion </Callbacks>  
 
-    #region <Properties>
-    
-    public Vector3 GetUnitPosition
-    {
-        get { return Transform.position; }
-    }
-
-    public Vector3 GetUnitOrthographicPosition
-    {
-        get
-        {
-            var unitPosition = GetUnitPosition;
-            unitPosition.y = 0;
-            
-            return unitPosition;
-        }
-    }
+    #region <Properties>   
     
     public List<KeyValuePair<string, int>> AnimationSequenceSet
     {
@@ -302,24 +309,29 @@ public abstract class Unit : PreProcessedMonoBehaviour, IBoneAnimatorCallback
     #endregion </Properties>
     
     #region <Methods>
-
-    public virtual void Move(Vector3 forceVector)
+    
+    protected virtual void UnitMove(Vector3 forceVector)
     {
-        SetAngleToDestination(forceVector);
-        RunningTime = UpdateRunningTime;
+        if (Controller != null && Controller.enabled)
+        {
+            if (FixedFocusManager.GetInstance.IsValid &&
+                FixedFocusManager.GetInstance.IsOverFrontier(GetPosition + 5.14f * forceVector))
+            {
+                return;
+            }
+            Controller.Move(forceVector);
+        }
     }
     
     public void AddForce(Vector3 force, bool hasIgnoreFriction = false, bool hasIgnoreMass = false)
     {
         ForceVector += force / (hasIgnoreMass ? 1f : Mass) * (hasIgnoreFriction ? FrictionFactor : 1f);
     }
-
-
     
     public virtual void Hurt(Unit caster, int damage, TextureType type, Vector3 forceDirection, 
         Action<Unit, Unit, Vector3> action = null)
     {
-        if (Filter.IsDead(this)) return;      
+        if (UnitFilter.Check(this, UnitFilter.Condition.IsDead) | UnitFilter.Check(this, UnitFilter.Condition.IsInvincible)) return;      
 
         // TODO<Carey>: if (Verifying Of The Condition Of Hurt)
         if (true)
@@ -400,27 +412,6 @@ public abstract class Unit : PreProcessedMonoBehaviour, IBoneAnimatorCallback
         if(_mFocusCircle!=null) ObjectManager.RemoveObject(_mFocusCircle);
     }
     
-    public Enemy DetectAndChaseEnemyInRange(float radius, float chaseRate, float rushRate)
-    {
-        var focusEnemy = DetectEnemyInRange(radius);
-
-        if (focusEnemy != null)
-        {
-            SetAngleToDestination(GetNormDirectionToMove(focusEnemy));
-            Transform.eulerAngles = Vector3.up * AngleToDestination;
-            AddForce(GetNormDirectionToMove(focusEnemy) * focusEnemy.DistanceTowardPlayer * chaseRate);
-            
-            return focusEnemy;
-        }
-        
-        if (rushRate > Mathf.Epsilon)
-        {            
-            AddForce(Transform.TransformDirection(Vector3.forward * rushRate));
-        }
-
-        return focusEnemy;
-    }    
-    
     public virtual void ResetFromCast()
     {                       
         UnitBoneAnimator.SetTrigger(RunningTime > Mathf.Epsilon
@@ -478,22 +469,28 @@ public abstract class Unit : PreProcessedMonoBehaviour, IBoneAnimatorCallback
         var l_Result = AttachPoint[Random.Range(0, (int) AttachPointType.Count)];
         return l_Result == null ? Transform  : l_Result;
     }
-    
-    public void NavMeshMoveApply(Vector3 p_TargetPosition)
-    {
-        if (_navMeshAgent != null && !_navMeshAgent.enabled) return;
-        _navMeshAgent.SetDestination(p_TargetPosition);
-        Move(p_TargetPosition);
-    }
-    
-    public void NavMeshStop()
-    {
-        _navMeshAgent.ResetPath();
-    }
 
     public void UpdateTension()
     {
         Tension = DefaultTension;
+    }
+
+    public void ChaseOrRush(Unit target, float chaseRate, float rushRate)
+    {
+        if (target == null)
+            AddForce(Transform.TransformDirection(Vector3.forward) * rushRate, hasIgnoreFriction: true);
+        else
+        {
+            Transform.eulerAngles = Vector3.up * SetAngleToDestination(target.GetPosition - GetPosition);
+            AddForce(GetNormDirectionToMove(target) * MathVector.SqrDistance(GetPosition, target.GetPosition) *
+                     chaseRate, hasIgnoreFriction: true, hasIgnoreMass: true);
+        }
+    }
+    
+    public virtual void Move(Vector3 forceVector)
+    {
+        SetAngleToDestination(forceVector);
+        RunningTime = UpdateRunningTime;
     }
 
     private void UpdateMove()
@@ -519,17 +516,14 @@ public abstract class Unit : PreProcessedMonoBehaviour, IBoneAnimatorCallback
         
         RunningTime -= Time.fixedDeltaTime;
 
-        if (_navMeshAgent == null)
-        {
-            // Take care about the rotation of character.
-            var angle = Mathf.LerpAngle(Transform.eulerAngles.y, AngleToDestination,
-                Time.fixedDeltaTime * RotateSpeed);
-            Transform.eulerAngles = Vector3.up * angle;
+        // Take care about the rotation of character.
+        var angle = Mathf.LerpAngle(Transform.eulerAngles.y, AngleToDestination,
+            Time.fixedDeltaTime * RotateSpeed);
+        Transform.eulerAngles = Vector3.up * angle;
 
-            // Adjust the movement speed to forward.
-            var direction = Transform.TransformDirection(Vector3.forward);
-            UnitMove(direction * Speed);
-        }
+        // Adjust the movement speed to forward.
+        var direction = Transform.TransformDirection(Vector3.forward);
+        UnitMove(direction * Speed);
     }
 
     private void UpdateForce()
@@ -540,31 +534,6 @@ public abstract class Unit : PreProcessedMonoBehaviour, IBoneAnimatorCallback
         ForceVector = Vector3.Lerp(ForceVector, Vector3.zero, FrictionFactor * Time.fixedDeltaTime);
     }
 
-    protected virtual void UnitMove(Vector3 forceVector)
-    {
-        if (Controller.enabled)
-        {
-            Controller.Move(forceVector);
-        }
-        if (_navMeshAgent != null && _navMeshAgent.enabled)
-        {
-            _navMeshAgent.ResetPath();
-            _navMeshAgent.Move(forceVector);
-        }
-    }
-        
-    protected virtual Enemy DetectEnemyInRange(float p_Radius)
-    {        
-        var focusEnemyGroupNumber = Filter.GetTagGroupInRadiusCompareToTag("Enemy",p_Radius,Transform.position, FilteredObjectGroup);
-        if (focusEnemyGroupNumber > 0)
-        {
-            PlayerChampionHandler.GetInstance.SortObjectAgainstToChampionByDistance(FilteredObjectGroup, focusEnemyGroupNumber);
-            return (Enemy) FilteredObjectGroup[0];
-        }
-        return null;
-    }
-
-
     private void RevertLoopOptionOfAttachedParticleSet(bool p_Flag)
     {
         for (var i = 0; i < ParticleSetWhenDecay.Length; i++)
@@ -573,8 +542,32 @@ public abstract class Unit : PreProcessedMonoBehaviour, IBoneAnimatorCallback
         }
     }
 
+    public Unit SetInvincible(bool p_Flag)
+    {
+        Invincible = p_Flag;
+        return this;
+    }
+
     #endregion </Methods>    
 
+    #region <Structs>
+
+    public struct SpellHyperParameter
+    {
+        public int CoolDown;
+        public int Damage;
+        public float Range;
+        public int Motion;
+        public Vector3 ColliderHalfExtends;
+
+        public Vector3 GetHalfExtends()
+        {
+            return ColliderHalfExtends == Vector3.zero ? Vector3.one * 0.003f : ColliderHalfExtends;
+        }
+    }
+
+    #endregion
+    
     #region <Coroutines>
     
     protected Action<CommomActionArgs> AnimationSequenceHandler = args =>

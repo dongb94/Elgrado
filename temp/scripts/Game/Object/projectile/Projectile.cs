@@ -116,6 +116,9 @@ public partial class Projectile : PreProcessedMonoBehaviour
     /* Chasing Target */
     private Transform _chasingTarget;
     
+    /* Check Invincible */
+    private bool _IsCheckInvincible;
+    
     /* join */
     private Projectile _Join;
     
@@ -176,26 +179,15 @@ public partial class Projectile : PreProcessedMonoBehaviour
 
     #region <UnitCollideCheck>
         CheckCollisionAboutUnit(_collideUnitAction);
-        #endregion
+    #endregion
 
     #region <FixedUpdateEvent>
-        if (!CheckCollisionAboutUnit(_fixedUpdateAction,false))
-        {
-            if (_fixedUpdateAction != null)
-            {
-                _fixedUpdateAction(new CommomActionArgs()
-                    .SetMorphable(this)
-                    );
-            }
-        }
-        
+        CheckCollisionAboutUnit(_fixedUpdateAction, false);
     #endregion
 
     #region <ApplyMove>
-
         ApplyMoveAndDirection(PeekedNestPosition);
-    ApplyTimeUnitForward();
-        
+        ApplyTimeUnitForward();
     #endregion
         
     #region <TimeExpiredCheck>
@@ -229,6 +221,7 @@ public partial class Projectile : PreProcessedMonoBehaviour
 
     public override void OnCreated()
     {
+        _IsCheckInvincible = false;
         _DefferedActivateTime = 0f;
         _Join = null;
         _chasingTarget = null;
@@ -521,30 +514,31 @@ public partial class Projectile : PreProcessedMonoBehaviour
                 Transform.position);
             _castHitNumber = CheckCollisionWithOverlap(ColliderGroup, _halfExtents, UnitColliderLayerMask,Transform.position);
             var l_loopCount = Mathf.Min(Mathf.Max(_overLapCollideNumber, _castHitNumber), _maxColliderNumber);
+            var ignoreFilterMask = UnitFilter.Condition.IsPositive;
+            if (!_IsCheckInvincible)
+                ignoreFilterMask |= UnitFilter.Condition.IsOrCondition | UnitFilter.Condition.IsInvincible;
             for (var index = 0; index < l_loopCount; index++)
             {
                 #region <CollisionCheckByHitCast>
                 
                 if(index >= _overLapCollideNumber) goto SECTION_HIT_CHECK_OVER;
                 var hittedUnit = CastHitGroup[index].collider.GetComponent<Unit>();
-                if (Filter.IsPositive(hittedUnit, Caster)) goto SECTION_HIT_CHECK_OVER;
-                for (var ExIndex = 0; ExIndex < ExCollidedUnitGroup.Count; ExIndex++)
-                    if (Filter.IsPositive(hittedUnit, ExCollidedUnitGroup[ExIndex])) goto SECTION_HIT_CHECK_OVER;
+                if (UnitFilter.Check(Caster, hittedUnit, ignoreFilterMask)) goto SECTION_HIT_CHECK_OVER;
+                foreach (var collided in ExCollidedUnitGroup)
+                    if (UnitFilter.Check(collided, hittedUnit, ignoreFilterMask)) goto SECTION_HIT_CHECK_OVER;
                 ExCollidedUnitGroup.Add(hittedUnit);
                 CollidedUnitGroup.Add(hittedUnit);
-                SECTION_HIT_CHECK_OVER:;
-
+                SECTION_HIT_CHECK_OVER:
+                
                 #endregion
 
                 #region <CollisionCheckbyOverlap>
                 
                 if(index >= _castHitNumber) goto SECTION_COLLIDE_CHECK_OVER;
                 var collidedUnit = ColliderGroup[index].GetComponent<Unit>();
-                if (Filter.IsPositive(collidedUnit, Caster)) goto SECTION_COLLIDE_CHECK_OVER;
-                for (var ExIndex = 0; ExIndex < ExCollidedUnitGroup.Count; ExIndex++)
-                {
-                    if (Filter.IsPositive(collidedUnit, ExCollidedUnitGroup[ExIndex])) goto SECTION_COLLIDE_CHECK_OVER;
-                }
+                if (UnitFilter.Check(Caster, collidedUnit, ignoreFilterMask)) goto SECTION_COLLIDE_CHECK_OVER;
+                foreach (var exCollided in ExCollidedUnitGroup)
+                    if (UnitFilter.Check(exCollided, collidedUnit, ignoreFilterMask)) goto SECTION_COLLIDE_CHECK_OVER;
                 ExCollidedUnitGroup.Add(collidedUnit);
                 CollidedUnitGroup.Add(collidedUnit);
                 SECTION_COLLIDE_CHECK_OVER:;  

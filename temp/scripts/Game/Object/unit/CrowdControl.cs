@@ -69,7 +69,7 @@ public class CrowdControl
 
     public void OnBirth()
     {
-        if (Filter.IsDead(Owner)) return;       
+        if (UnitFilter.Check(Owner, UnitFilter.Condition.IsDead)) return;       
         
         if (_optionGroup[(int) Option.OverrideAbsolute]
             || _optionGroup[(int) Option.OverrideRace]

@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using DungeonArchitect;
 using UnityEngine;
 
 public abstract class Champion : Unit
@@ -22,7 +23,6 @@ public abstract class Champion : Unit
     public List<List<Action<UnitEventArgs>[]>> ActionGroupRoot { get; private set; }
     public Dictionary<List<Action<UnitEventArgs>[]>, ActionStatus> ActionStatusGroup { get; private set; }
     public Dictionary<List<Action<UnitEventArgs>[]>, UnitEventArgs> ActionArgs { get; private set; }
-    [NonSerialized]public SpellHyperParameter[] hyperParameterSet;
 
     public int CurrentActionPoint { get; private set; }
     [SerializeField] private int _maximumActionPoint;
@@ -32,16 +32,7 @@ public abstract class Champion : Unit
     private UnitEventArgs _currentActionArgs;
     
     #endregion
-
-    #region <Enums>
     
-    public enum HyperParameterOfSpell
-    {
-        NormalAttack01, NormalAttack02, NormalAttack03, Spell01, Spell02, Spell03, Spell04, Spell05, Spell06, Spell07, Spell08, Spell09, Spell10, End
-    }
-    
-    #endregion </Enums>
-
     #region <Unity/Callbacks>
 
     protected override void Awake()
@@ -64,8 +55,6 @@ public abstract class Champion : Unit
         }
         
         CurrentActionPoint = _maximumActionPoint;
-        
-        hyperParameterSet = new SpellHyperParameter[(int) HyperParameterOfSpell.End];
     }
 
     protected void OnEnable()
@@ -83,13 +72,24 @@ public abstract class Champion : Unit
             CurrentAction[(int) UnitEventType.OnFixedUpdate](CurrentActionArgs);
     }
 
+    private void OnAnimatorMove()
+    {
+        if (FixedFocusManager.GetInstance.IsValid &&
+            FixedFocusManager.GetInstance.IsOverFrontier(GetPosition + 5.14f * UnitBoneAnimator.UnityAnimator.deltaPosition))
+        {
+            return;
+        }
+        transform.position += UnitBoneAnimator.UnityAnimator.deltaPosition;
+        transform.forward = UnitBoneAnimator.UnityAnimator.deltaRotation * transform.forward;
+    }
+
     #endregion
 
     #region <Callbacks>
     
     public override void OnIdleRelax()
     {
-        if (CurrentAction != null)
+        if (CurrentAction != null && CurrentAction[(int) UnitEventType.OnRelax] != null)
             CurrentAction[(int) UnitEventType.OnRelax](CurrentActionArgs);
     }
 
@@ -152,7 +152,7 @@ public abstract class Champion : Unit
         ActionTrigger(UnitEventType.End);
     }
 
-    public void OnCastAnimationCleanUp()
+    public override void OnCastAnimationCleanUp()
     {                
         ActionTrigger(UnitEventType.CleanUp);        
     }
@@ -255,8 +255,10 @@ public abstract class Champion : Unit
         Action<Unit, Unit, Vector3> action = null)
     {        
         base.Hurt(caster, damage, type, forceDirection, action);
-
-        if (Filter.IsAlive(this))
+        if( CurrentActionArgs !=null ) CurrentActionArgs.SetTransitionRestrict(false);
+        ResetFromCast();
+        
+        if (UnitFilter.Check(this, UnitFilter.Condition.IsAlive | UnitFilter.Condition.IsVulnerable))
         {
 //            SoundManager.GetInstance
 //                .CastSfx(SoundManager.AudioMixerType.VOICE, ChampionType, K514SfxStorage.ActivityType.Hitted).SetTrigger();
@@ -279,7 +281,7 @@ public abstract class Champion : Unit
         CurrentActionGroup = null;
         base.ResetFromCast();
         
-    }
+    }        
 
     /// <summary>
     /// Actually trigger the action based on EventInfo.
@@ -328,24 +330,22 @@ public abstract class Champion : Unit
         }
 
         return true;
-    }   
+    }
 
-    #endregion
-
-    #region <Structs>
-
-    public struct SpellHyperParameter
+    public Computer GetClosestEnemy(float radius)
     {
-        public int CoolDown;
-        public int Damage;
-        public float Range;
-        public int Motion;
-        public Vector3 ColliderHalfExtends;
+        UnitFilter.GetUnitAtLocation(GetPosition, radius, this,
+            UnitFilter.Condition.IsNegative | UnitFilter.Condition.IsVulnerable | UnitFilter.Condition.HasFaceToFace);
+        return UnitFilter.GetClosestEnemy(UnitFilter.GetLastFilteredGroup);
+    }
 
-        public Vector3 GetHalfExtends()
-        {
-            return ColliderHalfExtends == Vector3.zero ? Vector3.one * 0.003f : ColliderHalfExtends;
-        }
+    public Computer DetectAndChaseEnemyInRange(float radius, float chaseRate, float rushRate)
+    {
+        var focusEnemy = GetClosestEnemy(radius);
+
+        ChaseOrRush(focusEnemy, chaseRate, rushRate);
+
+        return focusEnemy;
     }
 
     #endregion

@@ -408,7 +408,7 @@ public partial class Projectile{
                 return proj.CopiedBezierPointSet[0];
             }
             ,p_Duration
-            ,pPointNumber + 1
+            ,pPointNumber
             ,false
             ,p_InitAction
             ,p_ExpiredAction
@@ -602,7 +602,13 @@ public partial class Projectile{
         return this;
     }
     
+    public Projectile SetInvincibleCheck(bool p_Flag)
+    {
+        _IsCheckInvincible = p_Flag;
         
+        return this;
+    }
+
     public void SetParitcleComponentActive(bool pFlag)
     {
         for (var i = 0 ; i < _particleList.Length ; i++)

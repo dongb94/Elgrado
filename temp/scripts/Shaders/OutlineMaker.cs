@@ -23,7 +23,7 @@ public class OutlineMaker : MonoBehaviour
 
     private Champion _champion
     {
-        get { return PlayerManager.GetInstance.PlayerChampion; }
+        get { return PlayerChampionHandler.GetInstance.Handle; }
     }
 
     #endregion </Fields>

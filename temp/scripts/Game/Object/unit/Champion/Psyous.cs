@@ -22,7 +22,7 @@ public class Psyous : Champion
     #region <Consts>
 
     // cached collider size
-    private static readonly Vector3 FireBall_Range = new Vector3(1.0f, 2.0f, 0.015f);  // (horizon wide, height, vertical wide) Box type
+    private static readonly Vector3 FireBall_Range = new Vector3(2.0f, 0.0f, 0.0f);  // (horizon wide, height, vertical wide) Sphere type
     private static readonly Vector3 ForceHammer_Range = new Vector3(2.5f, 0.0f, 0.0f);  // (horizon wide, height, vertical wide) Sphere type
     private static readonly Vector3 MagmaBall_Range = new Vector3(0.5f, 2.0f, 0.015f);  // (horizon wide, height, vertical wide) Box type
     private static readonly Vector3 FireRain_Range = new Vector3(3.0f, 0.0f, 0.0f);  // (horizon wide, height, vertical wide) Sphere type
@@ -62,8 +62,8 @@ public class Psyous : Champion
         ActionGroupRoot[(int)ActionButtonTrigger.Type.Normal].Add(NormalAction02());
         ActionGroupRoot[(int)ActionButtonTrigger.Type.Normal].Add(NormalAction03());
 
-        ActionGroupRoot[(int)ActionButtonTrigger.Type.Primary].Add(Spell08());
-        ActionGroupRoot[(int)ActionButtonTrigger.Type.Secondary].Add(Spell10());
+        ActionGroupRoot[(int)ActionButtonTrigger.Type.Primary].Add(Spell07());
+        ActionGroupRoot[(int)ActionButtonTrigger.Type.Secondary].Add(Spell08());
 
         for (var index=0; index < ActionGroupRoot.Count; index++)
         {
@@ -345,22 +345,31 @@ public class Psyous : Champion
 
             ProjectileFactory.GetInstance.CreateProjectile(ProjectileFactory.Type.PsyousFireBall, caster, FireBall_Info[(int)Info.life_time], triggerPosition)
                 .SetVelocity(direction * FireBall_Info[(int)Info.speed])
+                .SetMaxColliderNumber(1)
                 .SetDirection()
-                .SetMaxColliderNumber((int)FireBall_Info[(int)Info.max_collider])
-                .SetRemoveDelay(2.0f)
-                .SetProjectileType(Projectile.ProjectileType.Box)
-                .SetColliderBox(FireBall_Range)
+                .SetRemoveDelay(0.5f)
                 .SetCollideUnitAction(args =>
                 {
                     var proj = (Projectile)args.MorphObject;
-                    foreach (var collidedUnit in proj.CollidedUnitGroup)
-                    {
-                        collidedUnit.Hurt(proj.Caster, (int)FireBall_Info[(int)Info.damage], TextureType.Magic, proj.Direction,
-                            (trigger, subject, forceDirection) =>
+                    ProjectileFactory.GetInstance.CreateProjectile(ProjectileFactory.Type.Boom, caster, FireBall_Info[(int)Info.life_time], proj.Transform.position)
+                        .SetMaxColliderNumber((int)FireBall_Info[(int)Info.max_collider])
+                        .SetRemoveDelay(1.0f)
+                        .SetProjectileType(Projectile.ProjectileType.Sphere)
+                        .SetColliderBox(FireBall_Range)
+                        .SetCollideUnitAction(eventArgs =>
+                        {
+                            var Explotion_proj = (Projectile)args.MorphObject;
+                            foreach (var collidedUnit in Explotion_proj.CollidedUnitGroup)
                             {
-                                subject.AddForce(forceDirection * 10.0f);
-                            });
-                    }
+                                collidedUnit.Hurt(Explotion_proj.Caster, (int)FireBall_Info[(int)Info.damage], TextureType.Magic, proj.Direction,
+                                    (trigger, subject, forceDirection) =>
+                                    {
+                                        subject.AddForce(forceDirection * 10.0f);
+                                    });
+                            }
+                            Explotion_proj.Remove();
+                        })
+                        .SetTrigger(true);
                     proj.Remove();
                 })
                 .SetTrigger(true);
@@ -560,7 +569,7 @@ public class Psyous : Champion
         #region <Spell04/Methods/SetTrigger>
         eventGroup[(int)UnitEventType.SetTrigger] = (eventArgs) =>
         {
-            eventArgs.SetFactor(FireBall_Range.magnitude);
+            eventArgs.SetFactor(FireRain_Range.magnitude);
             ActionButtonTrigger.CastTypeSetter[(int)ActionButtonTrigger.CastType.TargetToLocation](eventArgs);
         };
         #endregion
@@ -633,7 +642,7 @@ public class Psyous : Champion
         #region <Spell05/Methods/SetTrigger>
         eventGroup[(int)UnitEventType.SetTrigger] = (eventArgs) =>
         {
-            eventArgs.SetFactor(Blink_Range);
+            eventArgs.SetFactor(1f);
             ActionButtonTrigger.CastTypeSetter[(int)ActionButtonTrigger.CastType.TargetToLocation](eventArgs);
         };
         #endregion
@@ -643,7 +652,7 @@ public class Psyous : Champion
           {
               var caster = (Champion)other.Caster;
               caster.UpdateTension();
-              caster.UnitBoneAnimator.SetCast("Spell", 1);
+              caster.UnitBoneAnimator.SetCast("Spell", 0);
           };
         #endregion
 
@@ -720,17 +729,17 @@ public class Psyous : Champion
             var caster = (Champion)other.Caster;
             var triggerPosition = caster.Transform.position;
 
-            var enemyIterater =
-                Filter.GetTagGroupInRadiusCompareToTag("Enemy", Binding_Range, pStorage: FilteredObjectGroup);
-            
+            var enemyIterator =                       
+                UnitFilter.GetUnitAtLocation(caster.GetPosition, Binding_Range, caster,
+                    UnitFilter.Condition.IsNegative, FilteredObjectGroup);                
             K514VfxManager.GetInstance.CastVfx(K514VfxManager.ParticleType.PSmog, caster.Transform.position)
                 .SetLifeSpan(3f)
                 .SetScale(1f)
                 .SetTrigger();
 
-            while (enemyIterater > 0)
+            while (enemyIterator > 0)
             {
-                Enemy candidate = (Enemy)FilteredObjectGroup[--enemyIterater];
+                Enemy candidate = (Enemy)FilteredObjectGroup[--enemyIterator];
 
                 var particle = K514VfxManager.GetInstance.CastVfx(K514VfxManager.ParticleType.PBind, candidate.Transform.position)
                                          .SetLifeSpan(4f)
