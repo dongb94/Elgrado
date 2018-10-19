@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.Assertions;
@@ -8,6 +9,8 @@ public class BossMonster : Enemy
 
     private Phase _currentPhase;
     private List<Phase> _phaseGroup;
+    protected Action<UnitEventArgs>[] CooltimeSetActionGroup;
+    private int _coolDown;
 
     #region <Unity/Callback>
 
@@ -15,10 +18,24 @@ public class BossMonster : Enemy
     {
         base.Awake();
         _phaseGroup = new List<Phase>();
+        CooltimeSetActionGroup = new Action<UnitEventArgs>[(int)UnitEventType.Count];
+        _coolDown = 0;
     }
 
     #endregion </Unity/Callback>
+
+    #region <CustomEvent>
+
+    public override void OnHeartBeat()
+    {
+        base.OnHeartBeat();
+        
+        if (ReservationActionList.Count == 0)
+            _coolDown = Math.Max(0, _coolDown - 1);
+    }
     
+    #endregion
+
     #region <Callbacks>
  
     public override void OnHealthPointAdjust()
@@ -28,7 +45,6 @@ public class BossMonster : Enemy
         if (_currentPhase == null) return;
         
         PatternGroup = _currentPhase.PatternGroup;
-        Debug.Log(PatternGroup[0].actionQueue.Count);
     }
 
     #endregion </Callbacks>
@@ -57,11 +73,33 @@ public class BossMonster : Enemy
 
     #endregion </Properties>
 
+    #region <Methods>
+    
     protected void AddPhase(Phase patterns)
     {
         _phaseGroup.Add(patterns);
     }
 
+    public override void TryPushNextPattern()
+    {
+        if (_coolDown == 0 || ReservationActionList.Count != 0)
+        {
+            PushNextPattern();
+        }
+    }
+    
+    // cooldown when reservation list size is 0
+    public Action<UnitEventArgs>[] SetCooldown(int cooldown=0)
+    {
+        CooltimeSetActionGroup[(int) UnitEventType.Begin] = (args) =>
+        {
+            _coolDown = Math.Max(0,cooldown);
+        };
+        return CooltimeSetActionGroup;
+    }
+    
+    #endregion </Methods>
+    
     #region <Structs>
 
     public class Phase

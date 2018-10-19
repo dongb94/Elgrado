@@ -97,7 +97,7 @@ public class ActionButtonTrigger : CustomUIEventListener
     #region <Callbacks>
             
     public override void OnClickBegin()
-    {
+    {                      
         var eventInfo = CustomUIEventCaster.GetInstance.GetLastUIEventInfo;
         EventInfo = eventInfo;
 
@@ -126,7 +126,7 @@ public class ActionButtonTrigger : CustomUIEventListener
                 break;
             case CastType.Suspend:
                 var actionCaster = PlayerChampionHandler.GetInstance.Handle;
-                actionCaster.OnCastAnimationCleanUp();
+                actionCaster.OnActionTriggerEnd(ActionButtonType);
                 break;
             case CastType.TargetToLocation:
                 break;
@@ -155,7 +155,12 @@ public class ActionButtonTrigger : CustomUIEventListener
     #endregion </Callbacks>
        
     #region <Properties>
-    
+
+    public Type ActionButtonType
+    {
+        get { return _type; }
+    }
+
     public CastType CastTriggerType
     {
         get { return _castType;}

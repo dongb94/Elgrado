@@ -1,8 +1,5 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
-using DungeonArchitect;
 using UnityEngine;
 
 public abstract class Champion : Unit
@@ -13,7 +10,7 @@ public abstract class Champion : Unit
     protected static void DefaultReset(UnitEventArgs eventArgs)
     {
         var caster = (Champion) eventArgs.Caster;
-        caster.ResetFromCast();        
+        caster.OnCastAnimationCleanUp();   
     }
     
     #endregion </Consts>
@@ -23,13 +20,15 @@ public abstract class Champion : Unit
     public List<List<Action<UnitEventArgs>[]>> ActionGroupRoot { get; private set; }
     public Dictionary<List<Action<UnitEventArgs>[]>, ActionStatus> ActionStatusGroup { get; private set; }
     public Dictionary<List<Action<UnitEventArgs>[]>, UnitEventArgs> ActionArgs { get; private set; }
-
+    
+    
     public int CurrentActionPoint { get; private set; }
     [SerializeField] private int _maximumActionPoint;
 
     private List<Action<UnitEventArgs>[]> _currentActionGroup;
     private ActionStatus _currentActionStatus;
     private UnitEventArgs _currentActionArgs;
+    private UnitEventType _currentSequence;
     
     #endregion
     
@@ -53,15 +52,8 @@ public abstract class Champion : Unit
             ActionStatusGroup.Add(lastCreatedActionGroup, new ActionStatus());
             ActionArgs.Add(lastCreatedActionGroup, new UnitEventArgs());
         }
-        
         CurrentActionPoint = _maximumActionPoint;
-    }
 
-    protected void OnEnable()
-    {                
-        MaterialApplier.RevertTrigger();
-        if (!HUDManager.GetInstance.JoystickController.IsEventHoldOn)
-            RunningTime = .0f;
     }
 
     protected override void FixedUpdate()
@@ -79,6 +71,16 @@ public abstract class Champion : Unit
         {
             return;
         }
+        
+        if (UnitBoneAnimator.CurrentState == BoneAnimator.AnimationState.Idle ||
+            UnitBoneAnimator.CurrentState == BoneAnimator.AnimationState.Move)
+        {
+            if (Speed < Mathf.Epsilon)
+            {
+                return;
+            }
+        }
+        Speed = 0f;
         transform.position += UnitBoneAnimator.UnityAnimator.deltaPosition;
         transform.forward = UnitBoneAnimator.UnityAnimator.deltaRotation * transform.forward;
     }
@@ -86,14 +88,21 @@ public abstract class Champion : Unit
     #endregion
 
     #region <Callbacks>
-    
+
+    public override void OnCreated()
+    {
+        base.OnCreated();
+        if (!HUDManager.GetInstance.JoystickController.IsEventHoldOn)
+            RunningTime = .0f;
+    }
+
     public override void OnIdleRelax()
     {
         if (CurrentAction != null && CurrentAction[(int) UnitEventType.OnRelax] != null)
             CurrentAction[(int) UnitEventType.OnRelax](CurrentActionArgs);
     }
 
-    protected override void OnDeath()
+    public override void OnDeath()
     {
         CurrentHealthPoint = MaximumHealthPoint;
 //        SoundManager.GetInstance
@@ -103,64 +112,88 @@ public abstract class Champion : Unit
     public void OnActionTrigger(ActionButtonTrigger actionButtonTriggerCaster, ActionButtonTrigger.Type actionType)
     {
         var actionTypeId = (int) actionType;
-        var actionGroup = ActionGroupRoot[actionTypeId];
-
+        var actionGroup = ActionGroupRoot[actionTypeId];       
+        
         if (ActionStatusGroup[actionGroup].CurrentCooldown > 0) return;
-        if (ActionStatusGroup[actionGroup].MaximumStack > 0 && ActionStatusGroup[actionGroup].CurrentStack == 0) return;
-        if (_currentActionArgs != null && _currentActionArgs.TransitionRestrictTrigger) return;
-        if (CurrentActionGroup != null && CurrentActionGroup != actionGroup) OnTransitionToOtherCast();
-
+        if (ActionStatusGroup[actionGroup].MaximumStack > 0 && ActionStatusGroup[actionGroup].CurrentStack == 0 && !ActionStatusGroup[actionGroup].isNotRefill) return;
+        if (CurrentActionArgs != null && CurrentActionArgs.TransitionRestrictTrigger) return;
+        if (CurrentActionGroup != null && CurrentActionGroup != actionGroup) OnTransitionToOtherCast();       
+        
         CurrentActionGroup = actionGroup;
         CurrentActionArgs.SetActionTrigger(actionButtonTriggerCaster).SetCaster(this);
+        // when trigger pressed, set triggerState bool
+        CurrentActionArgs.SetIsTriggerSet(true);
         
         ActionTrigger(UnitEventType.SetTrigger);
     }
 
     public override void OnCastAnimationStandby()
     {
-        ActionTrigger(UnitEventType.Standby);
+        if(CheckNextEvent(UnitEventType.Standby)) ActionTrigger(UnitEventType.Standby);
     }
 
     public override void OnCastAnimationCue()
-    {        
-        ActionTrigger(UnitEventType.Cue);
+    {
+        if(CheckNextEvent(UnitEventType.Cue)) ActionTrigger(UnitEventType.Cue);
     }
 
     public override void OnCastAnimationCue2()
     {        
-        ActionTrigger(UnitEventType.Cue2);
+        if(CheckNextEvent(UnitEventType.Cue2)) ActionTrigger(UnitEventType.Cue2);
     }
     
     public override void OnCastAnimationCue3()
     {        
-        ActionTrigger(UnitEventType.Cue3);
+        if(CheckNextEvent(UnitEventType.Cue3)) ActionTrigger(UnitEventType.Cue3);
     }
     
     public override void OnCastAnimationCue4()
     {        
-        ActionTrigger(UnitEventType.Cue4);
+        if(CheckNextEvent(UnitEventType.Cue4)) ActionTrigger(UnitEventType.Cue4);
     }
-
     
+    // this is eventkey call back, not script
     public override void OnCastAnimationExit()
     {                
-        ActionTrigger(UnitEventType.Exit);
+        if(CheckNextEvent(UnitEventType.Exit)) ActionTrigger(UnitEventType.Exit);
     }
 
+    // when cast animation end, this is script control
     public override void OnCastAnimationEnd()
     {        
         ActionTrigger(UnitEventType.End);
     }
 
+    // when transition Cast -> Other, always invoked once at one animation sequence
     public override void OnCastAnimationCleanUp()
-    {                
-        ActionTrigger(UnitEventType.CleanUp);        
+    {
+        if (ActionTrigger(UnitEventType.CleanUp))
+            ResetFromCast();
     }
 
+    // when transition Cast -> Another Cast
     public void OnTransitionToOtherCast()
     {        
         ActionTrigger(UnitEventType.OnTransitionToOtherCast);
         OnCastAnimationCleanUp();
+    }
+    
+    // when Action Trigger Released
+    public void OnActionTriggerEnd(ActionButtonTrigger.Type p_TriggerType)
+    {
+        var actionTypeId = (int) p_TriggerType;
+        var actionGroup = ActionGroupRoot[actionTypeId];
+        var actionUnitEventArgs = ActionArgs[actionGroup];
+        
+        if (CurrentActionArgs != null && CurrentActionArgs.ActionButtonTrigger.ActionButtonType == p_TriggerType 
+         && CurrentActionArgs.IsTriggerSet && !CurrentActionArgs.ActionTriggerReleaseEventDeferredFlag)
+        {
+            if (!CurrentActionArgs.IsActionTriggerReleaseEventDeferred) ActionTrigger(UnitEventType.OnActionTriggerEnd);
+            else CurrentActionArgs.SetActionTriggerReleaseEventDeferredFlag(true);
+        }
+        
+        
+        actionUnitEventArgs.SetIsTriggerSet(false);
     }
 
     public override void OnHeartBeat()
@@ -175,7 +208,7 @@ public abstract class Champion : Unit
             
             actionStatus.CurrentStackCooldown = Math.Max(0, actionStatus.CurrentStackCooldown - 1);
             if (actionStatus.CurrentStackCooldown == 0 && 
-                actionStatus.CurrentStack < actionStatus.MaximumStack)
+                actionStatus.CurrentStack < actionStatus.MaximumStack && !actionStatus.isNotRefill)
             {
                 actionStatus.CurrentStackCooldown = actionStatus.MaximumStackCooldown;
                 actionStatus.CurrentStack++;
@@ -190,15 +223,11 @@ public abstract class Champion : Unit
     
     #region <Properties>
     
-    public Action<UnitEventArgs>[] CurrentAction
-    {
-        get { return _currentActionGroup != null ? 
-            _currentActionGroup[CurrentActionStatus.CurrentChain] : null; }
-    }
+    public Action<UnitEventArgs>[] CurrentAction => _currentActionGroup?[CurrentActionStatus.CurrentChain];
 
     public List<Action<UnitEventArgs>[]> CurrentActionGroup
     {
-        get { return _currentActionGroup; }
+        get => _currentActionGroup;
         private set
         {                        
             _currentActionGroup = value;
@@ -236,7 +265,21 @@ public abstract class Champion : Unit
     #endregion </Properties>
     
     #region <Methods>
-    
+
+    public bool CheckAndInvokeDeferredActionTriggerReleased(bool p_InvokeActionKey = false)
+    {
+        if (CurrentActionArgs.ActionTriggerReleaseEventDeferredFlag)
+        {
+            if (p_InvokeActionKey)
+            {
+                CurrentActionArgs.SetActionTriggerReleaseEventDeferredFlag(false);
+                ActionTrigger(UnitEventType.OnActionTriggerEnd);
+            }
+            return true;
+        }
+        return false;
+    }
+
     public override void Move(Vector3 forceVector)
     {
         if (  UnitBoneAnimator.CurrentState == BoneAnimator.AnimationState.Hit
@@ -262,8 +305,11 @@ public abstract class Champion : Unit
         {
 //            SoundManager.GetInstance
 //                .CastSfx(SoundManager.AudioMixerType.VOICE, ChampionType, K514SfxStorage.ActivityType.Hitted).SetTrigger();
-            UnitBoneAnimator.SetTrigger(BoneAnimator.AnimationState.Hit);
-            UpdateTension();
+            if (forceDirection.sqrMagnitude > Mathf.Epsilon)
+            {
+                UnitBoneAnimator.SetTrigger(BoneAnimator.AnimationState.Hit);
+                UpdateTension();
+            }
         }
 
         HUDManager.GetInstance.UpdateChampionStateView();
@@ -278,9 +324,10 @@ public abstract class Champion : Unit
    
     public override void ResetFromCast()
     {
+        if (CurrentActionArgs != null) CurrentActionArgs.SetActionTriggerReleaseEventDeferredFlag(false).SetIsTriggerSet(false);
+        _currentSequence = UnitEventType.None;
         CurrentActionGroup = null;
-        base.ResetFromCast();
-        
+        base.ResetFromCast();        
     }        
 
     /// <summary>
@@ -291,8 +338,9 @@ public abstract class Champion : Unit
     /// <exception cref="ArgumentOutOfRangeException">Not defined action.</exception>
     public bool ActionTrigger(UnitEventType unitEventType)
     {
-        if (CurrentAction == null || CurrentAction[(int) unitEventType] == null) return false;        
+        if (CurrentAction == null) return false;
         
+        if (CurrentAction[(int) unitEventType] == null) return true;                
         CurrentAction[(int) unitEventType](CurrentActionArgs);
 
         if (CurrentAction == null) return true;
@@ -309,12 +357,17 @@ public abstract class Champion : Unit
                 break;
             case UnitEventType.Cue:
                 break;
+            case UnitEventType.Cue2:
+                break;
+            case UnitEventType.Cue3:
+                break;
+            case UnitEventType.Cue4:
+                break;
             case UnitEventType.Exit:
                 break;
             case UnitEventType.End:
                 break;
-            case UnitEventType.CleanUp:
-                ResetFromCast();
+            case UnitEventType.CleanUp:                
                 break;
             case UnitEventType.OnHeartBeat:
                 break;
@@ -324,6 +377,9 @@ public abstract class Champion : Unit
                 break;
             case UnitEventType.OnTransitionToOtherCast:
                 break;
+            case UnitEventType.OnActionTriggerEnd:
+                break;
+            case UnitEventType.None:
             case UnitEventType.Count:
             default:
                 throw new ArgumentOutOfRangeException("UnitEventType", unitEventType, null);
@@ -332,10 +388,32 @@ public abstract class Champion : Unit
         return true;
     }
 
+    public bool CheckNextEvent(UnitEventType toTransition)
+    {
+        if (CurrentAction == null) return false;
+        
+        if (_currentSequence == toTransition)
+        {
+            Debug.Log("toTransition Reflected : " + toTransition);
+            return false;
+        }
+        _currentSequence = toTransition;
+        
+        var isFlagged = toTransition == NextEvent || NextEvent == UnitEventType.None;
+        
+        if (isFlagged)
+        {
+            Debug.Log("toTransition : " + toTransition + "  /  NextEvent : " + NextEvent + "  /  Event Hash : " + CurrentAction.GetHashCode());
+            NextEvent = UnitEventType.None;
+        }
+
+        return isFlagged;
+    }
+
     public Computer GetClosestEnemy(float radius)
     {
         UnitFilter.GetUnitAtLocation(GetPosition, radius, this,
-            UnitFilter.Condition.IsNegative | UnitFilter.Condition.IsVulnerable | UnitFilter.Condition.HasFaceToFace);
+            UnitFilter.Condition.IsNegative | UnitFilter.Condition.IsVulnerable | UnitFilter.Condition.HasFaceToFace | UnitFilter.Condition.IsAlive);
         return UnitFilter.GetClosestEnemy(UnitFilter.GetLastFilteredGroup);
     }
 
@@ -360,7 +438,8 @@ public abstract class Champion : Unit
         private int _maximumStackCooldown, _currentStackCooldown;
         private int _maximumStack, _currentStack;
         private int _maximumChain, _currentChain;
-
+        public bool isNotRefill;
+        
         public int MaximumCooldown
         {
             get { return _maximumCooldown;}

@@ -62,8 +62,8 @@ public class Psyous : Champion
         ActionGroupRoot[(int)ActionButtonTrigger.Type.Normal].Add(NormalAction02());
         ActionGroupRoot[(int)ActionButtonTrigger.Type.Normal].Add(NormalAction03());
 
-        ActionGroupRoot[(int)ActionButtonTrigger.Type.Primary].Add(Spell07());
-        ActionGroupRoot[(int)ActionButtonTrigger.Type.Secondary].Add(Spell08());
+        ActionGroupRoot[(int)ActionButtonTrigger.Type.Primary].Add(Spell01());
+        ActionGroupRoot[(int)ActionButtonTrigger.Type.Secondary].Add(Spell10());
 
         for (var index=0; index < ActionGroupRoot.Count; index++)
         {
@@ -106,8 +106,8 @@ public class Psyous : Champion
         };
         #endregion
 
-        #region <NormalAction/Methods/Exit>
-        eventGroup[(int)UnitEventType.Exit] = (other) =>
+        #region <NormalAction/Methods/Cue>
+        eventGroup[(int)UnitEventType.Cue] = (other) =>
         {
             var caster = (Champion)other.Caster;
 
@@ -116,7 +116,7 @@ public class Psyous : Champion
                     caster.Transform.TransformDirection(Vector3.forward).normalized
                     : (new Vector3(other.Candidate.Transform.position.x, triggerPosition.y, other.Candidate.Transform.position.z) - triggerPosition).normalized;
 
-            K514VfxManager.GetInstance.CastVfx(K514VfxManager.ParticleType.PArrowCylinder, triggerPosition)
+            VfxManager.GetInstance.CreateVfx(VfxManager.Type.ArrowCylinder, triggerPosition)
                 .SetLifeSpan(.3f)
                 .SetForward(caster.Transform.forward)
                 .SetScale(1f)
@@ -177,8 +177,8 @@ public class Psyous : Champion
         };
         #endregion
 
-        #region <NormalAction/Methods/Exit>
-        eventGroup[(int)UnitEventType.Exit] = (other) =>
+        #region <NormalAction/Methods/Cue>
+        eventGroup[(int)UnitEventType.Cue] = (other) =>
         {
             var caster = (Champion)other.Caster;
 
@@ -241,12 +241,12 @@ public class Psyous : Champion
         };
         #endregion
 
-        #region <NormalAction/Methods/Exit>
-        eventGroup[(int)UnitEventType.Exit] = (other) =>
+        #region <NormalAction/Methods/Cue>
+        eventGroup[(int)UnitEventType.Cue] = (other) =>
         {
             var caster = (Champion)other.Caster;
 
-            var triggerPosition = caster.AttachPoint[(int)AttachPointType.RightHandIndex1].position;
+            var triggerPosition = caster.AttachPoint[(int)AttachPointType.LeftHandIndex1].position;
             var direction = other.Candidate == null ?
                     caster.Transform.TransformDirection(Vector3.forward).normalized
                     : (new Vector3(other.Candidate.Transform.position.x, triggerPosition.y, other.Candidate.Transform.position.z) - triggerPosition).normalized;
@@ -317,13 +317,7 @@ public class Psyous : Champion
         #endregion
 
         #region <Spell01/Methods/Cue>
-
-        //eventGroup[(int)UnitEventType.Cue] = other => { };
-
-        #endregion
-
-        #region <Spell01/Methods/Exit>
-        eventGroup[(int)UnitEventType.Exit] = (other) =>
+        eventGroup[(int)UnitEventType.Cue] = (other) =>
         {
             var caster = (Champion)other.Caster;
 
@@ -332,12 +326,12 @@ public class Psyous : Champion
                     caster.Transform.TransformDirection(Vector3.forward).normalized
                     : (new Vector3(other.Candidate.Transform.position.x, triggerPosition.y, other.Candidate.Transform.position.z) - triggerPosition).normalized;
 
-            K514VfxManager.GetInstance.CastVfx(K514VfxManager.ParticleType.PFire, triggerPosition)
+            VfxManager.GetInstance.CreateVfx(VfxManager.Type.Fire, triggerPosition)
                     .SetLifeSpan(.3f)
                     .SetForward(triggerPosition)
                     .SetScale(1f)
                     .SetTrigger();
-            K514VfxManager.GetInstance.CastVfx(K514VfxManager.ParticleType.PEmber, triggerPosition)
+            VfxManager.GetInstance.CreateVfx(VfxManager.Type.Ember, triggerPosition)
                     .SetLifeSpan(.3f)
                     .SetForward(triggerPosition)
                     .SetScale(1f)
@@ -412,19 +406,12 @@ public class Psyous : Champion
         #endregion
 
         #region <Spell02/Methods/Cue>
-        eventGroup[(int)UnitEventType.Cue] = other =>
-            {
-
-            };
-        #endregion
-
-        #region <Spell02/Methods/Exit>
-        eventGroup[(int)UnitEventType.Exit] = (other) =>
+        eventGroup[(int)UnitEventType.Cue] = (other) =>
         {
             var caster = (Champion)other.Caster;
             var triggerPosition = other.CastPosition;
 
-            K514VfxManager.GetInstance.CastVfx(K514VfxManager.ParticleType.PBlast, triggerPosition)
+            VfxManager.GetInstance.CreateVfx(VfxManager.Type.Blast, triggerPosition)
                     .SetLifeSpan(.3f)
                     .SetForward(triggerPosition)
                     .SetScale(0.3f)
@@ -489,15 +476,7 @@ public class Psyous : Champion
         #endregion
 
         #region <Spell03/Methods/Cue>
-
-        eventGroup[(int)UnitEventType.Cue] = other =>
-          {
-          };
-
-        #endregion
-
-        #region <Spell03/Methods/Exit>
-        eventGroup[(int)UnitEventType.Exit] = (other) =>
+        eventGroup[(int)UnitEventType.Cue] = (other) =>
         {
             var caster = (Champion)other.Caster;
 
@@ -507,12 +486,12 @@ public class Psyous : Champion
                     : (new Vector3(other.Candidate.Transform.position.x, triggerPosition.y, other.Candidate.Transform.position.z) - triggerPosition).normalized;
             var fallDirection = direction + new Vector3(0, -4f, 0);
 
-            K514VfxManager.GetInstance.CastVfx(K514VfxManager.ParticleType.PFire, triggerPosition)
+            VfxManager.GetInstance.CreateVfx(VfxManager.Type.Fire, triggerPosition)
                     .SetLifeSpan(.3f)
                     .SetForward(triggerPosition)
                     .SetScale(1f)
                     .SetTrigger();
-            K514VfxManager.GetInstance.CastVfx(K514VfxManager.ParticleType.PEmber, triggerPosition)
+            VfxManager.GetInstance.CreateVfx(VfxManager.Type.Ember, triggerPosition)
                     .SetLifeSpan(.3f)
                     .SetForward(triggerPosition)
                     .SetScale(1f)
@@ -584,14 +563,7 @@ public class Psyous : Champion
         #endregion
 
         #region <Spell04/Methods/Cue>
-        eventGroup[(int)UnitEventType.Cue] = other =>
-        {
-
-        };
-        #endregion
-
-        #region <Spell04/Methods/Exit>
-        eventGroup[(int)UnitEventType.Exit] = (other) =>
+        eventGroup[(int)UnitEventType.Cue] = (other) =>
         {
             var caster = (Champion)other.Caster;
             var triggerPosition = other.CastPosition;
@@ -657,14 +629,7 @@ public class Psyous : Champion
         #endregion
 
         #region <Spell05/Methods/Cue>
-        eventGroup[(int)UnitEventType.Cue] = other =>
-        {
-
-        };
-        #endregion
-
-        #region <Spell05/Methods/Exit>
-        eventGroup[(int)UnitEventType.Exit] = (other) =>
+        eventGroup[(int)UnitEventType.Cue] = (other) =>
         {
             var caster = (Champion)other.Caster;
             var triggerPosition = caster.Transform.position + ((other.CastPosition - caster.Transform.position).normalized * Blink_Range);
@@ -674,7 +639,7 @@ public class Psyous : Champion
             caster.Transform.position = hit.point;
             */
 
-            var particle = K514VfxManager.GetInstance.CastVfx(K514VfxManager.ParticleType.PBlink, caster.Transform.position)
+            var particle = VfxManager.GetInstance.CreateVfx(VfxManager.Type.Blink, caster.Transform.position)
                 .SetLifeSpan(3f)
                 .SetForward(other.CastPosition - caster.Transform.position)
                 .SetScale(1f)
@@ -717,22 +682,15 @@ public class Psyous : Champion
         #endregion
 
         #region <Spell06/Methods/Cue>
-        eventGroup[(int)UnitEventType.Cue] = other =>
-        {
-
-        };
-        #endregion
-
-        #region <Spell06/Methods/Exit>
-        eventGroup[(int)UnitEventType.Exit] = (other) =>
+        eventGroup[(int)UnitEventType.Cue] = (other) =>
         {
             var caster = (Champion)other.Caster;
             var triggerPosition = caster.Transform.position;
 
             var enemyIterator =                       
                 UnitFilter.GetUnitAtLocation(caster.GetPosition, Binding_Range, caster,
-                    UnitFilter.Condition.IsNegative, FilteredObjectGroup);                
-            K514VfxManager.GetInstance.CastVfx(K514VfxManager.ParticleType.PSmog, caster.Transform.position)
+                    UnitFilter.Condition.IsNegative, FilteredObjectGroup);
+            VfxManager.GetInstance.CreateVfx(VfxManager.Type.Smog, caster.Transform.position)
                 .SetLifeSpan(3f)
                 .SetScale(1f)
                 .SetTrigger();
@@ -741,52 +699,23 @@ public class Psyous : Champion
             {
                 Enemy candidate = (Enemy)FilteredObjectGroup[--enemyIterator];
 
-                var particle = K514VfxManager.GetInstance.CastVfx(K514VfxManager.ParticleType.PBind, candidate.Transform.position)
+                var particle = VfxManager.GetInstance.CreateVfx(VfxManager.Type.Bind, candidate.Transform.position)
                                          .SetLifeSpan(4f)
                                          .SetScale(1f)
                                          .SetTrigger();
 
-                candidate.Hurt(caster, 0, TextureType.Magic, Vector3.zero);
+                candidate.Hurt(caster, 0, TextureType.Magic, Vector3.zero);                
 
-                candidate.AddCrowdControl(new CrowdControl(candidate, CrowdControl.CrowdControlType.Stun, "Stun", 5, true)
-                    .SetAction(CrowdControl.EventType.OnBirth,
-                               new CrowdControlArgs()
-                                .SetCandidate(candidate)
-                                .SetCaster(caster),
-                               (args) =>
-                               {
-                                   args.Candidate.UnitBoneAnimator.UnityAnimator.speed = .0f;
-                               }
-                    )
-                    .SetAction(CrowdControl.EventType.OnHeartBeat,
-                                new CrowdControlArgs()
-                                    .SetCaster(caster)
-                                    .SetCandidate(candidate),
-                                (args) =>
-                                {
-                                    args.Candidate.Hurt(caster, 1, TextureType.Magic, Vector3.zero);
-                                }
-                    )
-                    .SetAction(CrowdControl.EventType.OnFixedUpdate,
-                                new CrowdControlArgs()
-                                    .SetCaster(caster)
-                                    .SetCandidate(candidate),
-                                (args) =>
-                                {
-                                    particle.Transform.position = args.Candidate.Transform.position;
-                                }
-                    )
-                    .SetAction(CrowdControl.EventType.OnTerminate,
-                                new CrowdControlArgs()
-                                    .SetCaster(caster)
-                                    .SetCandidate(candidate),
-                                (args) =>
-                                {
-                                    args.Candidate.UnitBoneAnimator.UnityAnimator.speed = 1.0f;
-                                }
-                    )
-                    .SetOption(CrowdControl.Option.OverrideAbsolute, true));
+                var cc = Buff.Stun(candidate, 5);
+                cc.BuffArgs.SetCaster(caster).SetParticle(particle);
 
+                candidate.AddCrowdControl(cc
+                    .SetAction(Buff.EventType.OnHeartBeat,
+                        (args) => { args.Owner.Hurt(args.Caster, 1, TextureType.Magic); }
+                    )
+                    .SetAction(Buff.EventType.OnFixedUpdate,
+                        (args) => { args.Particle.Transform.position = args.Owner.GetPosition; }
+                    ));
             }
 
         };
@@ -827,14 +756,7 @@ public class Psyous : Champion
         #endregion
 
         #region <Spell07/Methods/Cue>
-        eventGroup[(int)UnitEventType.Cue] = other =>
-        {
-
-        };
-        #endregion
-
-        #region <Spell07/Methods/Exit>
-        eventGroup[(int)UnitEventType.Exit] = (other) =>
+        eventGroup[(int)UnitEventType.Cue] = (other) =>
         {
             var caster = (Champion)other.Caster;
             var target = (Enemy)other.Candidate;
@@ -849,25 +771,7 @@ public class Psyous : Champion
                 var currentAction = CurrentActionStatus;
 
                 target.Hurt(caster, 0, TextureType.Magic, Vector3.zero);
-                target.AddCrowdControl(new CrowdControl(target, CrowdControl.CrowdControlType.Stun, "Stun", (int)MagicHand_Info[(int)Info.life_time]*2, true)
-                    .SetAction(CrowdControl.EventType.OnBirth,
-                                new CrowdControlArgs()
-                                .SetCandidate(target)
-                                .SetCaster(caster),
-                                (args) =>
-                                {
-                                    args.Candidate.UnitBoneAnimator.UnityAnimator.speed = .0f;
-                                }
-                    )
-                    .SetAction(CrowdControl.EventType.OnTerminate,
-                                new CrowdControlArgs()
-                                    .SetCaster(caster)
-                                    .SetCandidate(target),
-                                (args) =>
-                                {
-                                    args.Candidate.UnitBoneAnimator.UnityAnimator.speed = 1.0f;
-                                }
-                ));
+                target.AddCrowdControl(Buff.Stun(target, (int)MagicHand_Info[(int)Info.life_time]*2));
                 ProjectileFactory.GetInstance.CreateProjectile(ProjectileFactory.Type.PsyousMagicHand, caster, 0.2f, triggerPosition)
                     .SetVelocity(grabVector * 5)
                     .SetProjectileType(Projectile.ProjectileType.Point)
@@ -1006,15 +910,7 @@ public class Psyous : Champion
         #endregion
 
         #region <Spell08/Methods/Cue>
-
-        eventGroup[(int)UnitEventType.Cue] = other =>
-        {
-        };
-
-        #endregion
-
-        #region <Spell08/Methods/Exit>
-        eventGroup[(int)UnitEventType.Exit] = (other) =>
+        eventGroup[(int)UnitEventType.Cue] = (other) =>
         {
             var caster = (Champion)other.Caster;
 
@@ -1023,12 +919,12 @@ public class Psyous : Champion
                     caster.Transform.TransformDirection(Vector3.forward).normalized
                     : (new Vector3(other.Candidate.Transform.position.x, triggerPosition.y, other.Candidate.Transform.position.z) - triggerPosition).normalized;
 
-            K514VfxManager.GetInstance.CastVfx(K514VfxManager.ParticleType.PFire, triggerPosition)
+            VfxManager.GetInstance.CreateVfx(VfxManager.Type.Fire, triggerPosition)
                     .SetLifeSpan(.3f)
                     .SetForward(triggerPosition)
                     .SetScale(1f)
                     .SetTrigger();
-            K514VfxManager.GetInstance.CastVfx(K514VfxManager.ParticleType.PEmber, triggerPosition)
+            VfxManager.GetInstance.CreateVfx(VfxManager.Type.Ember, triggerPosition)
                     .SetLifeSpan(.3f)
                     .SetForward(triggerPosition)
                     .SetScale(1f)
@@ -1047,7 +943,7 @@ public class Psyous : Champion
                 {
                     var subProj = (Projectile)args.MorphObject;
 
-                    K514VfxManager.GetInstance.CastVfx(K514VfxManager.ParticleType.PFireShield, subProj.Transform.position)
+                    VfxManager.GetInstance.CreateVfx(VfxManager.Type.FireShield, subProj.Transform.position)
                         .SetLifeSpan(.3f)
                         .SetForward(subProj.Transform.forward)
                         .SetScale(1f)
@@ -1114,14 +1010,7 @@ public class Psyous : Champion
         #endregion
 
         #region <Spell09/Methods/Cue>
-        eventGroup[(int)UnitEventType.Cue] = other =>
-        {
-
-        };
-        #endregion
-
-        #region <Spell09/Methods/Exit>
-        eventGroup[(int)UnitEventType.Exit] = (other) =>
+        eventGroup[(int)UnitEventType.Cue] = (other) =>
         {
             var caster = (Champion)other.Caster;
             var target = (Enemy)other.Candidate;
@@ -1133,26 +1022,9 @@ public class Psyous : Champion
 
             var grabVector = grabPosition - triggerPosition;
 
-            target.Hurt(caster, 0, TextureType.Magic, Vector3.zero);
-            target.AddCrowdControl(new CrowdControl(target, CrowdControl.CrowdControlType.Stun, "Stun", (int)Blaze_Info[(int)Info.life_time]+1, true)
-                .SetAction(CrowdControl.EventType.OnBirth,
-                            new CrowdControlArgs()
-                            .SetCandidate(target)
-                            .SetCaster(caster),
-                            (args) =>
-                            {
-                                args.Candidate.UnitBoneAnimator.UnityAnimator.speed = .0f;
-                            }
-                )
-                .SetAction(CrowdControl.EventType.OnTerminate,
-                            new CrowdControlArgs()
-                                .SetCaster(caster)
-                                .SetCandidate(target),
-                            (args) =>
-                            {
-                                args.Candidate.UnitBoneAnimator.UnityAnimator.speed = 1.0f;
-                            }
-            ));
+            target.Hurt(caster, 0, TextureType.Magic, Vector3.zero);            
+            target.AddCrowdControl(Buff.Stun(target, (int)Blaze_Info[(int)Info.life_time]+1));
+            
             ProjectileFactory.GetInstance.CreateProjectile(ProjectileFactory.Type.PsyousFireBall, caster, 0.10f, triggerPosition)
                 .SetVelocity(grabVector * 6)
                 .SetProjectileType(Projectile.ProjectileType.Point)
@@ -1252,8 +1124,8 @@ public class Psyous : Champion
         };
         #endregion
 
-        #region <Spell10/Methods/Exit>
-        eventGroup[(int)UnitEventType.Exit] = (other) =>
+        #region <Spell10/Methods/Cue>
+        eventGroup[(int)UnitEventType.Cue] = (other) =>
         {
             var caster = (Champion)other.Caster;
             var triggerPosition = caster.AttachPoint[(int)AttachPointType.RightHandIndex1].position;
@@ -1261,7 +1133,7 @@ public class Psyous : Champion
                     caster.Transform.TransformDirection(Vector3.forward).normalized
                     : (new Vector3(other.Candidate.Transform.position.x, triggerPosition.y, other.Candidate.Transform.position.z) - triggerPosition).normalized;
 
-            K514VfxManager.GetInstance.CastVfx(K514VfxManager.ParticleType.PArrowCylinder, triggerPosition)
+            VfxManager.GetInstance.CreateVfx(VfxManager.Type.ArrowCylinder, triggerPosition)
                 .SetLifeSpan(.3f)
                 .SetForward(caster.Transform.forward)
                 .SetScale(1f)

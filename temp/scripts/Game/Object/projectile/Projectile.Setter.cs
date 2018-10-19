@@ -33,7 +33,7 @@ public partial class Projectile{
     public Projectile SetArrowFadeWholeTime(bool pLeave)
     {
         _arrowFadeWhenRemovingWholeFlag = pLeave;
-        
+        _mRenderer.enabled = pLeave;
         return this;
     }
     
@@ -617,40 +617,30 @@ public partial class Projectile{
         }
     }
     
-    public Projectile SetTrigger(bool activate, float p_DefferOffest = 0f)
+    public Projectile SetTrigger(bool activate, float p_DeferOffest = 0f)
     {
-        if (p_DefferOffest < Mathf.Epsilon)
+        if (p_DeferOffest < Mathf.Epsilon)
         {
             _isActive = activate;
         }
         else
         {
             #region <PooledCoroutineForAsyncProjectilActive>
-            _DefferedActivateTime = p_DefferOffest;
             var lContent = ObjectManager.GetInstance.GetObject<K514PooledCoroutine>(ObjectManager.PoolTag.Coroutine,
-                K514PrefabStorage.GetInstance.GetPrefab(K514PrefabStorage.PrefabType.PooledCoroutine));
+                K514PrefabStorage.GetInstance.GetPrefab(K514PrefabStorage.PrefabType.PooledCoroutine)).GetDeferredAction(p_DeferOffest
+                ,ano =>
+                {
+                    var proj = (Projectile) ano.MorphObject;
+                    proj.SetParitcleComponentActive(true);
+                    proj.SetTrigger(true);
+                }
+            );
             lContent._mParams.SetMorphable(this);
             lContent
                 .SetAction(K514PooledCoroutine.ActionType.Init,ano =>
                     {
                         var proj = (Projectile) ano.MorphObject;
                         proj.SetParitcleComponentActive(false);
-                    }
-                )
-                .SetAction(K514PooledCoroutine.ActionType.EndTrigger,ano =>
-                    {
-                        var proj = (Projectile) ano.MorphObject;
-                        return proj._DefferedActivateTime < ano.F_factor;
-                    }
-                )
-                .SetInterval(Time.fixedDeltaTime)
-                .SetAction(K514PooledCoroutine.ActionType.Activity, ano => { ano.SetFactor(ano.F_factor + Time.fixedDeltaTime); })
-                .SetAction(K514PooledCoroutine.ActionType.Finalize, ano =>
-                    {
-                        var proj = (Projectile) ano.MorphObject;
-                        // <K514> : there is no reason to reserving SetTrigger(false) deferred
-                        proj.SetParitcleComponentActive(true);
-                        proj.SetTrigger(true);
                     }
                 )
                 .SetTrigger();
@@ -691,6 +681,13 @@ public partial class Projectile{
     public Projectile SetCaster(Unit pCaster)
     {
         Caster = pCaster;
+        return this;
+    }
+
+    public Projectile SetParticleSystemIndexEnable(int p_Index, bool p_Flag)
+    {
+        _particleList[p_Index].gameObject.SetActive(p_Flag);
+
         return this;
     }
 }

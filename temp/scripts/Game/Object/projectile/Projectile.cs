@@ -122,10 +122,6 @@ public partial class Projectile : PreProcessedMonoBehaviour
     /* join */
     private Projectile _Join;
     
-    /* Deffered Activate */
-    private float _DefferedActivateTime;
-    
-    
     #endregion </Fields>
 
     #region <Enum>
@@ -182,7 +178,15 @@ public partial class Projectile : PreProcessedMonoBehaviour
     #endregion
 
     #region <FixedUpdateEvent>
-        CheckCollisionAboutUnit(_fixedUpdateAction, false);
+        if (!CheckCollisionAboutUnit(_fixedUpdateAction,false))
+        {
+            if (_fixedUpdateAction != null)
+            {
+                _fixedUpdateAction(new CommomActionArgs()
+                    .SetMorphable(this)
+                );
+            }
+        }
     #endregion
 
     #region <ApplyMove>
@@ -222,9 +226,7 @@ public partial class Projectile : PreProcessedMonoBehaviour
     public override void OnCreated()
     {
         _IsCheckInvincible = false;
-        _DefferedActivateTime = 0f;
         _Join = null;
-        _chasingTarget = null;
         _chasingTarget = null;
         PeekedNestPosition = Vector3.zero;
         _castHitNumber = _overLapCollideNumber = 0;
@@ -262,6 +264,8 @@ public partial class Projectile : PreProcessedMonoBehaviour
         RemoveDelay = 0f;
         _projectileType = ProjectileType.Box;
         _maxNumberOfHitTime = 1;
+
+        for (var i = 0; i < _particleList.Length; i++) SetParticleSystemIndexEnable(i, true);
     }
     
     public override void OnRemoved()

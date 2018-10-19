@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
 using UnityEngine.AI;
+using UnityEngine.Serialization;
 using Random = UnityEngine.Random;
 
 public abstract class Computer : Unit
@@ -12,7 +13,7 @@ public abstract class Computer : Unit
     protected const float IgnoreFocusUpdateTime = 1.5f;
     protected const float SqrCampReachConsiderateFactor = 1.5f * 1.5f;
     protected const int ObstacleTerrainColliderLayerMask = 1 << 1 | 1 << 13;
-    protected const float InnerAttackRangeRate = 0.4f;
+    protected const float InnerAttackRangeRate = 0.8f;
     
     #endregion </Consts>   
     
@@ -25,9 +26,7 @@ public abstract class Computer : Unit
     public bool IsHealthBarVisibleWholeTime;
 
     /* attack activity */
-    public int AttackPower;
     public float AttackRange;
-    public int PreAttackCooldown;
     protected float AttackInnerRange;
 
     /* focus activity */
@@ -35,29 +34,26 @@ public abstract class Computer : Unit
     public float ReturnToCasterRadius;
     public float RestrictReturnToCasterRadius;
     protected float _ignoreFocusTime;
-    protected Unit LastHurtingThisUnit;
-    protected Unit Target;
+    protected Unit CurrentPriorAggroUnit;
+    protected Unit CurrentAggroUnit;
     protected Vector3 inner_CampingPosition;
+    protected bool FixLookForwardFlag;
 
     /* move activity */
     [NonSerialized] public Activity UnitActivity = Activity.Rest;
 
     /* health bar */
     protected UIEnemyStateView _uiEnemyStateView;
-    protected Quaternion _rotation;
 
-    /* ally */
-    protected Ally _Ally;
-    
     /* spell */
-    [NonSerialized] public int CurrentAttackCooldown;
-    [NonSerialized] public int AttackCooldownLeft;    
-    [NonSerialized] public int Damage;    
     public Action<UnitEventArgs>[] TriggerActionEvent;
     [NonSerialized] public UnitEventArgs _params;
-    protected LinkedList<Action<UnitEventArgs>[]> _patternList;
     protected List<Pattern> PatternGroup;
-    private int MaxFrequency;
+    protected Pattern CurrentPattern;
+    protected LinkedList<Action<UnitEventArgs>[]> ReservationActionList;
+    protected int _maxFrequency;
+    public int Delay;
+    public int MaxDelay;
 
     /* life span */
     [NonSerialized] public int MaxLifeSpanCount;
@@ -73,11 +69,6 @@ public abstract class Computer : Unit
     #endregion </Fields>
 
     #region <Enums>
-
-    public enum Ally
-    {
-        Player, Enemy, Neutral
-    }
 
     public enum Activity
     {
@@ -151,9 +142,10 @@ public abstract class Computer : Unit
                 if (MaxLifeSpanCount != 0) _uiEnemyStateView.SetType(UIEnemyStateView.GaugeType.LifeCount);
                 _uiEnemyStateView.SetTrigger(this);
             }
+
             _uiEnemyStateView.UpdateState();
         }
-    
+
         if (State == UnitState.Dead)
         {
             if (DecayTimeLeft <= 0)
@@ -161,15 +153,22 @@ public abstract class Computer : Unit
                 MaterialApplier.RevertTrigger();
                 ObjectManager.RemoveObject(this);
             }
+
             return;
         }
 
         if (UnitActivity == Activity.Hunt && IsInAttackRange)
         {
-            TryAttack();
+            TryPushNextPattern();
         }
+        PatternGroup.ForEach(pattern =>
+        {
+            pattern.PatternCooldown = Math.Max(0, pattern.PatternCooldown - 1);
+        });
+        
+        Delay = Math.Max(0, Delay - 1);
     }
-    
+
     #endregion
 
     #region <InstantiateEvent>
@@ -180,24 +179,23 @@ public abstract class Computer : Unit
         _isCheckInvincible = false;
         _isValid = true;
         _uiEnemyStateView = null;
-        LastHurtingThisUnit = null;
-        Target = null;
+        CurrentPriorAggroUnit = null;
+        CurrentAggroUnit = null;
         UnitActivity = Activity.Rest;
         UnitBoneAnimator.Initialize();
         _navMeshAgent.enabled = true;
-        Damage = 0;
         MaxLifeSpanCount = inner_LifespanCount = 0;
-        _patternList.Clear();
-        CurrentAttackCooldown = AttackCooldownLeft = 0;
+        ReservationActionList.Clear();
         SpellTransactionFlag = false;
+        CurrentPattern = null;
+        FixLookForwardFlag = false;
     }
     
-    protected override void OnDeath()
+    public override void OnDeath()
     {
         base.OnDeath();
         _isValid = false;
-        // disalble navMeshAgent to not move when unit died
-        if (_navMeshAgent != null) _navMeshAgent.enabled = false;
+        _navMeshAgent.enabled = false;
     }
 
     #endregion    
@@ -210,15 +208,16 @@ public abstract class Computer : Unit
     {
         base.Awake();
         PatternGroup = new List<Pattern>();
-        _patternList = new LinkedList<Action<UnitEventArgs>[]>();
+        ReservationActionList = new LinkedList<Action<UnitEventArgs>[]>();
         _params = new UnitEventArgs();
         _ignoreFocusTime = .0f;
         ReturnToCasterRadius *= ReturnToCasterRadius;
         RestrictReturnToCasterRadius *= RestrictReturnToCasterRadius;
         AttackRange *= AttackRange;
-        AttackInnerRange = AttackRange * InnerAttackRangeRate; 
+        AttackInnerRange = AttackRange * InnerAttackRangeRate * InnerAttackRangeRate; 
         _navMeshAgent.speed = MovementSpeed; // set the maximum speed of navMeshAgent
-        MaxFrequency = 0;
+        _maxFrequency = 0;
+        Delay = 0;
     }
     
     protected override void FixedUpdate()
@@ -230,6 +229,7 @@ public abstract class Computer : Unit
             || UnitBoneAnimator.CurrentState == BoneAnimator.AnimationState.Hit
             || UnitBoneAnimator.CurrentState == BoneAnimator.AnimationState.Cast) return;
         UpdateFocus();
+        TryNextAction();
         
         switch (UnitActivity)
         {
@@ -258,6 +258,7 @@ public abstract class Computer : Unit
                 NavMeshMoveApply(CampingPosition);
                 break;
         }
+
     }
 
     #endregion </Unity/Callbacks>    
@@ -275,34 +276,25 @@ public abstract class Computer : Unit
         }
     }
     
-    public float SqrDistanceTowardBase {
-        get { return (CampingPosition - Transform.position).sqrMagnitude; }
-    }
+    public float SqrDistanceTowardBase => (CampingPosition - Transform.position).sqrMagnitude;
+
+    public float SqrDistanceTowardBase2D => Vector3.Scale(new Vector3(1f,0f,1f), CampingPosition - Transform.position).sqrMagnitude;
     
-    protected bool IsReadyToAttack
-    {
-        get { return AttackCooldownLeft <= 0 && UnitBoneAnimator.CurrentState != BoneAnimator.AnimationState.Cast; }
-    }
+    protected bool IsReadyToAttack => Delay <= 0 && UnitBoneAnimator.CurrentState != BoneAnimator.AnimationState.Cast;
+
+    protected bool IsInAttackRange => SqrDistanceTowardTarget < AttackRange;
     
-    protected bool IsInAttackInnerRange
-    {
-        // AttackRange is Squared value
-        get { return SqrDistanceTowardTarget < AttackInnerRange; }
-    }
-    
-    protected bool IsInAttackRange
-    {
-        // AttackRange is Squared value
-        get { return SqrDistanceTowardTarget < AttackRange; }
-    }
+    protected bool IsInAttackInnerRange => SqrDistanceTowardTarget < AttackInnerRange;
     
     public bool IsAnyObstacleBetweenFocus
     {
         get
         {
-            var RayDistance = Mathf.Sqrt(SqrDistanceTowardTarget);
-            if (Target == null) return true;
-            return Physics.Raycast(AttachPoint[(int)AttachPointType.HeadTop_End].position, GetNormDirectionCandidateRandomAttachPoint(AttachPoint[(int)AttachPointType.HeadTop_End].position,Target), RayDistance, ObstacleTerrainColliderLayerMask);
+            var rayDistance = Mathf.Sqrt(SqrDistanceTowardTarget);
+            if (CurrentAggroUnit == null) return true;
+            return Physics.Raycast(AttachPoint[(int) AttachPointType.HeadTop_End].position,
+                GetNormDirectionCandidateRandomAttachPoint(AttachPoint[(int) AttachPointType.HeadTop_End].position,
+                    CurrentAggroUnit), rayDistance, ObstacleTerrainColliderLayerMask);
         }
     }
     
@@ -323,13 +315,14 @@ public abstract class Computer : Unit
     {
         get
         {
-            if (LastHurtingThisUnit != null && LastHurtingThisUnit.State != UnitState.Dead) return LastHurtingThisUnit;
-            LastHurtingThisUnit = null;
-            if (Target != null)
+            if (FixLookForwardFlag) return null;
+            if (CurrentPriorAggroUnit != null && CurrentPriorAggroUnit.State != UnitState.Dead) return CurrentPriorAggroUnit;
+            CurrentPriorAggroUnit = null;
+            if (CurrentAggroUnit != null)
             {
-                if( Target.State != UnitState.Dead && (Target.GetPosition - GetPosition).sqrMagnitude < FocusRadius ) return Target;
+                if( CurrentAggroUnit.State != UnitState.Dead && (CurrentAggroUnit.GetPosition - GetPosition).sqrMagnitude < FocusRadius ) return CurrentAggroUnit;
             }
-            Target = null;
+            CurrentAggroUnit = null;
             
             int filteredObjectNumber;
             var filterMask = _isCheckInvincible ? UnitFilter.Condition.IsNegative | UnitFilter.Condition.IsAlive : UnitFilter.Condition
@@ -337,8 +330,9 @@ public abstract class Computer : Unit
             filteredObjectNumber = UnitFilter.GetUnitAtLocation(GetPosition, FocusRadius, this, filterMask, FilteredObjectGroup);
             
             if (filteredObjectNumber == 0) return null;
-            Target = (Unit)FilteredObjectGroup[Random.Range(0, filteredObjectNumber)];
-            return Target;
+
+            CurrentAggroUnit = (Unit)FilteredObjectGroup[Random.Range(0, filteredObjectNumber)];
+            return CurrentAggroUnit;
         }
     }
     
@@ -346,7 +340,7 @@ public abstract class Computer : Unit
     
     #region <UpdateBehaviours/Methods>
     
-    protected void Hunt()
+    protected virtual void Hunt()
     {
         // When it's not in release condition,
         if (Focus != null)
@@ -354,11 +348,18 @@ public abstract class Computer : Unit
             if (IsAnyObstacleBetweenFocus) return;
             // Is satisfied with the attack range for trying this attack?
 
+            UpdateTension();
+            
             if (IsInAttackInnerRange)
             {
                 SetAngleToDestination(GetNormDirectionToMove(Focus));
                 Transform.eulerAngles = Vector3.up * AngleToDestination;
                 _navMeshAgent.enabled = false;
+                RunningTime = 0f;
+            }else if (IsInAttackRange && _navMeshAgent.enabled)
+            {
+                SetAngleToDestination(GetNormDirectionToMove(Focus));
+                Transform.eulerAngles = Vector3.up * AngleToDestination;                
             }
             // If not satisfied the above condition,
             else if(!IsInAttackRange)
@@ -367,9 +368,9 @@ public abstract class Computer : Unit
                 NavMeshMoveApply(Focus.Transform.position);
             }
         }
-        else
+        else 
         {
-            SwitchActivity(Activity.Returntocamp);
+            if(!FixLookForwardFlag) SwitchActivity(Activity.Returntocamp);
         }
     }
     
@@ -382,7 +383,7 @@ public abstract class Computer : Unit
     protected void ReturnToCamp()
     {                      
         // Sync the height coordinate.                
-        if (SqrDistanceTowardBase <= SqrCampReachConsiderateFactor)
+        if (SqrDistanceTowardBase2D <= SqrCampReachConsiderateFactor)
         {
             SwitchActivity(Activity.Rest);
         }        
@@ -407,6 +408,7 @@ public abstract class Computer : Unit
     
     protected override void UnitMove(Vector3 forceVector)
     {
+        if (forceVector.sqrMagnitude < Mathf.Epsilon) return;
         if (_navMeshAgent != null && _navMeshAgent.enabled)
         {
             NavMeshStop();
@@ -437,7 +439,7 @@ public abstract class Computer : Unit
         }
 
         // @Temp: when it attacked in out of range, it would be tracking on you until you're in dead.
-        if(LastHurtingThisUnit == null || !LastHurtingThisUnit.ActiveSelf) LastHurtingThisUnit = caster;
+        if(CurrentPriorAggroUnit == null || CurrentPriorAggroUnit.State == UnitState.Dead) CurrentPriorAggroUnit = caster;
         SwitchActivity(Activity.Hunt);
 
         if (State == UnitState.Dead)
@@ -448,55 +450,39 @@ public abstract class Computer : Unit
         
         if (_uiEnemyStateView != null)        
             _uiEnemyStateView.UpdateState();
-
-        if (IsCanceledAttackWhenItHurt)
-        {
-            SetAttackCooldown(PreAttackCooldown);
-        }
     }
     
-    protected void TryAttack()
+    public virtual void TryPushNextPattern()
     {
-        if (IsReadyToAttack)
-        {
-            AttackTrigger();
-        }
-        else
-        {
-            if (UnitBoneAnimator.CurrentState != BoneAnimator.AnimationState.Cast 
-                && UnitBoneAnimator.CurrentState != BoneAnimator.AnimationState.Hit)
-                SetAttackCooldown(AttackCooldownLeft - 1);            
-        }
+        PushNextPattern();
     }
     
-    public virtual void AttackTrigger()
+    public virtual void PushNextPattern()
     {
         if (SpellTransactionFlag) return;
         _navMeshAgent.enabled = false;
-        if (_patternList.Count == 0)
+        if (ReservationActionList.Count != 0) return;
+        PatternGroupInitialize();
+        var selectedSkill = Random.Range(0, _maxFrequency);
+        var currentSkillFrequency = 0;
+        foreach (var pattern in PatternGroup)
         {
-            var selectedSkill = Random.Range(0, MaxFrequency);
-            var currentSkillFrequency = 0;
-            foreach (var skill in PatternGroup)
+            if(pattern.PatternCooldown != 0) continue;
+            currentSkillFrequency += pattern.Frequency;
+            if (currentSkillFrequency <= selectedSkill) continue;
+            CurrentPattern = pattern;
+            foreach (var node in pattern.ActionQueue)
             {
-                currentSkillFrequency += skill.frequency;
-                if (currentSkillFrequency >= selectedSkill)
-                {
-                    foreach (var node in skill.actionQueue)
-                    {
-                        _patternList.AddLast(node);
-                    }
-                    _patternList.Last.Value[(int) UnitEventType.End]+= eventArgs =>
-                    {
-                        AttackCooldownLeft += skill.patternCooldown;
-                        if (IsHealthBarVisibleOnlyHunt && !IsHealthBarVisibleWholeTime && _uiEnemyStateView != null) _uiEnemyStateView.UpdateState();
-                    };    
-                    break;
-                }
+                ReservationActionList.AddLast(node);
             }
         }
-        TriggerActionEvent = _patternList.First.Value;
-        _patternList.RemoveFirst();
+    }
+
+    public virtual void TryNextAction()
+    {
+        if (!IsReadyToAttack || ReservationActionList.Count == 0) return;
+        TriggerActionEvent = ReservationActionList.First.Value;
+        ReservationActionList.RemoveFirst();
         if(TriggerActionEvent[(int) UnitEventType.Begin] != null) TriggerActionEvent[(int) UnitEventType.Begin].Invoke(_params.SetCaster(this));
     }
 
@@ -535,8 +521,6 @@ public abstract class Computer : Unit
                     }
                 }
                 
-                if (IsHadInitialAttackCooldown && AttackCooldownLeft < PreAttackCooldown)
-                    SetAttackCooldown(PreAttackCooldown);
                 UnitBoneAnimator.SetTrigger(BoneAnimator.AnimationState.Idle);
                 _navMeshAgent.enabled = false;
                 break;
@@ -550,10 +534,10 @@ public abstract class Computer : Unit
                     }
                 }
                 
-                if (IsHadInitialAttackCooldown && AttackCooldownLeft < PreAttackCooldown)
-                    SetAttackCooldown(PreAttackCooldown);
                 _ignoreFocusTime = IgnoreFocusUpdateTime;
                 break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(activity), activity, null);
         }       
         UnitActivity = activity;
     }
@@ -562,16 +546,14 @@ public abstract class Computer : Unit
     {
         if (Focus == null)
         {
-            if (SqrDistanceTowardBase > ReturnToCasterRadius)
-            {
-                if(LastHurtingThisUnit == null) SwitchActivity(Activity.Returntocamp);
-            }
+            if (!(SqrDistanceTowardBase > ReturnToCasterRadius)) return;
+            if(CurrentPriorAggroUnit == null) SwitchActivity(Activity.Returntocamp);
         }
         else
         {
             if (SqrDistanceTowardBase > RestrictReturnToCasterRadius)
             {
-                LastHurtingThisUnit = null;
+                CurrentPriorAggroUnit = null;
                 SwitchActivity(Activity.Returntocamp);
                 return;
             }    
@@ -586,17 +568,13 @@ public abstract class Computer : Unit
         }
     }
 
-    protected void SetAttackCooldown(int value)
+    protected void PatternGroupInitialize()
     {
-        AttackCooldownLeft = Math.Max(0, value);
-        if (IsHealthBarVisibleOnlyHunt && !IsHealthBarVisibleWholeTime && _uiEnemyStateView != null) _uiEnemyStateView.UpdateState();
-    }
-
-    protected void SpellInitialize()
-    {
+        _maxFrequency = 0;
         foreach (var pattern in PatternGroup)
         {
-            MaxFrequency += pattern.frequency;
+            if (pattern.PatternCooldown != 0) continue;
+            _maxFrequency += pattern.Frequency;
         }
     }
     
@@ -605,6 +583,7 @@ public abstract class Computer : Unit
         base.ResetFromCast();
         SpellTransactionFlag = false;
         _navMeshAgent.enabled = true;
+        _params.ResetBuilder();
     }
 
     public Computer SetCheckInvincible(bool p_Flag)
@@ -613,22 +592,59 @@ public abstract class Computer : Unit
 
         return this;
     }
+    
+    // cooldown between actions
+    public Action<UnitEventArgs>[] SetDelay(int delay=0)
+    {
+        var delaySetActionGroup = new Action<UnitEventArgs>[(int)UnitEventType.Count];
+        delaySetActionGroup[(int) UnitEventType.Begin] = (args) =>
+        {
+            MaxDelay = Delay = Math.Max(0,delay);
+        };
+        return delaySetActionGroup;
+    }
+
+    public void FixCurrentForward()
+    {
+        FixLookForwardFlag = true;
+    }
 
     #endregion </Methods>
 
     #region <Struct>
     
-    public struct Pattern
+    public class Pattern
     {
-        public LinkedList<Action<UnitEventArgs>[]> actionQueue;
-        public int frequency;
-        public int patternCooldown;
+        public readonly LinkedList<Action<UnitEventArgs>[]> ActionQueue;
+        public int Frequency;
+        private readonly Action<UnitEventArgs>[] _patternCooldownSetActionGroup;
+        public int PatternCooldown;        //cooldown for each pattern
 
-        public Pattern(int frequency = 1, int cooldown = 0)
+        public Pattern(int frequency = 1)
         {
-            actionQueue = new LinkedList<Action<UnitEventArgs>[]>();
-            this.frequency = frequency;
-            patternCooldown = cooldown;
+            ActionQueue = new LinkedList<Action<UnitEventArgs>[]>();
+            _patternCooldownSetActionGroup = new Action<UnitEventArgs>[(int)UnitEventType.Count];
+            Frequency = frequency;
+        }
+
+        public Pattern SetNextPattern(Action<UnitEventArgs>[] p_NextPattern)
+        {
+            ActionQueue.AddLast(p_NextPattern);
+
+            return this;
+        }
+
+        public Pattern SetPatternCooldown(int cooldown, bool relative = false)
+        {
+            _patternCooldownSetActionGroup[(int) UnitEventType.Begin] = (args) =>
+            {
+                PatternCooldown = Math.Max(0, relative?
+                    PatternCooldown + cooldown
+                    : cooldown);
+            };
+            ActionQueue.AddLast(_patternCooldownSetActionGroup);
+
+            return this;
         }
     }
     
