@@ -43,7 +43,7 @@ public class OutlineMaker : MonoBehaviour
 	{
 		if (Vector3.SqrMagnitude(_champion.transform.position-_transform.position) < DistanceToCalculateOutline && _mUnit.State != Unit.UnitState.Dead)
 		{
-			CheckOutline();
+			CheckIsBehindObstacle();
 		}
 	}
 	
@@ -51,7 +51,7 @@ public class OutlineMaker : MonoBehaviour
 
 	#region <Methods>
 
-	private void CheckOutline()
+	private void CheckIsBehindObstacle()
 	{
         var camera_position = CameraManager.GetInstance.MainCameraTransform.position;
         Ray ray = new Ray(_transform.position + new Vector3(0, 2f, 0), camera_position - _transform.position - new Vector3(0, 2f, 0));
