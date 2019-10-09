@@ -6,7 +6,8 @@ public class DialogSkipTrigger : CustomUIEventListener
         if (!IsActive) return false;
         
         CustomUIEventCaster.GetInstance.LastUIEventInfo.IsActive = false;
-        
+        SoundManager.GetInstance.Play_UI_Sfx(K514SfxStorage.BeepType.Skip);
+
         DialogManager.GetInstance.ExitScript();
         
         return true;

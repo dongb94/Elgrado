@@ -9,6 +9,7 @@ public class CustomUIRoot : MonoBehaviour
     public UISprite[] SpriteGroup;
     public UILabel[] LabelGroup;
 
+    protected bool IsActive;
     protected bool UIEnable;
     
     #region <Enum>
@@ -24,7 +25,9 @@ public class CustomUIRoot : MonoBehaviour
 
     protected virtual void Awake()
     {
+        IsActive = true;
         UIEnable = true;
+        SetActive(ActiveType.Removed);
     }
 
     public virtual void SetActive(ActiveType active)
@@ -32,11 +35,16 @@ public class CustomUIRoot : MonoBehaviour
         switch (active)
         {
             case ActiveType.Removed :
-                gameObject.SetActive(false);
+                if (!IsActive) break;
+                IsActive = false;
+                transform.localPosition -= Vector3.up * 2048;
                 break;
             case ActiveType.Disable :
-                
-                gameObject.SetActive(true);
+                if (!IsActive)
+                {
+                    IsActive = true;
+                    transform.localPosition += Vector3.up * 2048;
+                }
                 if (!UIEnable) break;
                 
                 UIEnable = false;
@@ -50,8 +58,11 @@ public class CustomUIRoot : MonoBehaviour
                 }
                 break;
             case ActiveType.Enable :
-                
-                gameObject.SetActive(true);
+                if(!IsActive)
+                {
+                    IsActive = true;
+                    transform.localPosition += Vector3.up * 2048;          
+                }
                 if (UIEnable) break;
 
                 UIEnable = true;

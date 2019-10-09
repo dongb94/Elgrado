@@ -15,16 +15,12 @@ public class UIDialog : CustomUIRoot
 	public UILabel Script;
 	public DialogSkipTrigger Skip;
 	public DialogEventTrigger EventListener;
-
-	private Color _skipLabelColor;
 	
 	#region <Unity/CallBack>
 
 	private void Awake()
 	{
 		base.Awake();
-		
-		_skipLabelColor = new Color32(93, 176, 248, 255);
 	}
 
 	#endregion
@@ -36,9 +32,6 @@ public class UIDialog : CustomUIRoot
 		base.SetActive(active);
 		Skip.SetActive(active);
 		EventListener.SetActive(active);
-		
-		if(active == ActiveType.Enable)
-			LabelGroup[2].SetColorNoAlpha(_skipLabelColor);
 	}
 	
 	public void SetName(string name)

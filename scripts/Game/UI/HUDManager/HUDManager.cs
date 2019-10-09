@@ -5,6 +5,8 @@ using UnityEngine;
 
 public class HUDManager : Singleton<HUDManager> {
     
+    
+    /// TODO 보스 체력바 같은거 여기서 초기화 해야함, 씬이 로드될때마다 초기화
     #region <Fields>
 
     private CustomHUDStack HUDStack;
@@ -13,7 +15,6 @@ public class HUDManager : Singleton<HUDManager> {
     //Listener Group
     public ProjectorController ProjectorController;
     public ProjectorController RangeCircleController;
-    public UIChampionTagController UIChampionTagController;
     public ModernJoystickController JoystickController;
     public ActionButtonTrigger[] ActionButtonTriggerGroup;
     public UIOptionButton OptionButton;
@@ -29,7 +30,10 @@ public class HUDManager : Singleton<HUDManager> {
     public UIDialog DialogUI;
     public UIItemShop ItemShop;
     public UIResultScene ResultScene;
-    public UICover Cover;
+    public UICover UICover;
+    
+    //UIFont
+    public UIDamageFont DamageFont;
     
 #if UNITY_EDITOR
     [SerializeField] private K514KeyBoardAttacher _keyboardController;
@@ -86,8 +90,7 @@ public class HUDManager : Singleton<HUDManager> {
     public void Trigger()
     {
         HUDStack = new CustomHUDStack(HUDState.Playing);
-        
-        SetChampionStateViewActive(CustomUIRoot.ActiveType.Enable);
+        DamageFont.SetMainCamera();
     }
 
     public void UpdateChampionInfo(Champion playerChampion)
@@ -116,14 +119,6 @@ public class HUDManager : Singleton<HUDManager> {
         }
     }
 
-    public void UpdateChampionTagCoolTimeView()
-    {
-        foreach (var championTagCoolTimeView in _championStateViewGroup)
-        {
-            championTagCoolTimeView.TagCoolSync();            
-        }
-    }
-    
     public void SetChampionStateViewActive(CustomUIRoot.ActiveType active)
     {
         foreach (var championStateView in _championStateViewGroup)
@@ -132,10 +127,9 @@ public class HUDManager : Singleton<HUDManager> {
         }
     }
     
-    public void CleanUp()
+    public void Clear()
     {
         JoystickController.EventInfo.IsActive = false;
-        UIChampionTagController.EventInfo.IsActive = false;
         ProjectorController.EventInfo.IsActive = false;
         RangeCircleController.EventInfo.IsActive = false;
     }
@@ -167,24 +161,12 @@ public class HUDManager : Singleton<HUDManager> {
         }
     }
 
-    public void RotateAntionTriggerByQuaterBeat(int p_Index)
+    public void RotateActionTriggerByQuarterBeat(int p_Index)
     {
         var baringActionTrigger = ActionButtonTriggerGroup[p_Index] as ActionTriggerWithBaring;
         baringActionTrigger?.UpdateActionTriggerCogWheel(0.25f);
     }
-/*
-    public void SetCompass(Transform Boss, Transform Exit) => CompassUiController.SetCompassTarget(Boss, Exit);
-    
-    public void UpdateCompass()
-    {
-        CompassUiController.UpdateCompassUI();
-    }
 
-    public void UpdateBgmTimer(int p_Number)
-    {
-        CompassUiController.UpdateTimerLabel(p_Number);
-    }
-*/
     public void UpdateBuffUI()
     {
         ChampionBuffUI.UpdateBuffGroup();

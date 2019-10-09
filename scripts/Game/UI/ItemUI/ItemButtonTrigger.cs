@@ -64,8 +64,8 @@ public class ItemButtonTrigger : CustomUIEventListener
 		
         var player = PlayerItemManager.GetInstance;
         //비용 확인
-        if (Item.Price > player.Money) return false;
-        player.Money -= Item.Price;
+        if (Item.Price > player.WaveStone) return false;
+        player.WaveStone -= Item.Price;
         //add to inventory
         player.AddItem(Item);
 		
@@ -84,6 +84,6 @@ public class ItemButtonTrigger : CustomUIEventListener
         _icon.spriteName = Item.Name.ToString();
         _name.text = Item.Name.ToString();
         _price.text = Item.Price.ToString();
-        HUDManager.GetInstance.ItemShop.PlayerMoney.text = PlayerItemManager.GetInstance.Money.ToString();
+        HUDManager.GetInstance.ItemShop.PlayerMoney.text = PlayerItemManager.GetInstance.WaveStone.ToString();
     }
 }

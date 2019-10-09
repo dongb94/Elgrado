@@ -14,6 +14,8 @@ public class CustomHUDStack : Stack<HUDManager.HUDState>
     {
         base.Push(BaseUIState);
         _hudManager = HUDManager.GetInstance;
+
+        ActivationUIState(BaseUIState, CustomUIRoot.ActiveType.Enable);
     }
     
     public void Push(HUDManager.HUDState item)
@@ -64,7 +66,6 @@ public class CustomHUDStack : Stack<HUDManager.HUDState>
             case HUDManager.HUDState.Playing :
                 _hudManager.ChampionBuffUI.SetActive(active);
                 _hudManager.JoystickController.SetActive(active);
-                _hudManager.UIChampionTagController.SetActive(active);
                 _hudManager.SetActionTriggerActive(active);
                 _hudManager.SetChampionStateViewActive(active);
                 _hudManager.ItemSlot.SetActive(active);

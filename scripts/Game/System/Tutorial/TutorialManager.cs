@@ -1,6 +1,7 @@
 
 using System;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class TutorialManager : Singleton<TutorialManager>
 {
@@ -18,9 +19,11 @@ public class TutorialManager : Singleton<TutorialManager>
 
     public void PlayTutorial(TutorialName name)
     {
+        GameManager.GetInstance.IsKeepBGMWhileGameStopped = true;
         GameManager.GetInstance.GameStopFlag = true;
 
-        DialogManager.GetInstance.PlayScript(TutorialScriptPath + name.ToString() + ".json", TutorialEvent(name));
+        DialogManager.GetInstance.PlayScript(TutorialScriptPath + name.ToString(), TutorialEvent(name));
+        SoundManager.GetInstance.Play_UI_Sfx(K514SfxStorage.BeepType.Good);
     }
 
     private Action<EventArgs> TutorialEvent(TutorialName name)
@@ -39,11 +42,14 @@ public class TutorialManager : Singleton<TutorialManager>
                     {
                         GameManager.GetInstance.GameStopFlag = false;
                         HUDManager.GetInstance.Background.LeftScreenHighlight(false);
+
+                        K514PooledCoroutine.GetCoroutine().GetDeferredAction(3f,
+                                CAR => { TutorialManager.GetInstance.PlayTutorial(TutorialName.Attack); })
+                            .SetTrigger();
                     });
                     HUDManager.GetInstance.Background.LeftScreenHighlight(true);
                     MessageBoxUI.GetInstance.SetLabel("조이스틱을 움직여 이동하세요");
-                    MessageBoxUI.GetInstance.SetTrigger(SceneEnvironmentContoller.GetInstance.LocalSystem,
-                        MessageBoxUI.MessageActionType.Showing, MessageBoxUI.MessageEventType.None);
+                    MessageBoxUI.GetInstance.SetTrigger(MessageBoxUI.MessageActionType.Showing, MessageBoxUI.MessageEventType.WithNoEvent);
                 };
                 break;
             case TutorialName.Attack :
@@ -57,11 +63,14 @@ public class TutorialManager : Singleton<TutorialManager>
                     {
                         GameManager.GetInstance.GameStopFlag = false;
                         HUDManager.GetInstance.Background.UIHighlight(false);
+                        
+                        K514PooledCoroutine.GetCoroutine().GetDeferredAction(3f,
+                                CAR => { TutorialManager.GetInstance.PlayTutorial(TutorialName.ChargeAttack); })
+                            .SetTrigger();
                     });
                     HUDManager.GetInstance.Background.UIHighlight(true);
                     MessageBoxUI.GetInstance.SetLabel("공격버튼을 눌러 공격하세요");
-                    MessageBoxUI.GetInstance.SetTrigger(SceneEnvironmentContoller.GetInstance.LocalSystem,
-                        MessageBoxUI.MessageActionType.Showing, MessageBoxUI.MessageEventType.None);
+                    MessageBoxUI.GetInstance.SetTrigger(MessageBoxUI.MessageActionType.Showing, MessageBoxUI.MessageEventType.WithNoEvent);
                 };
                 break;
             case TutorialName.Dash :
@@ -75,11 +84,20 @@ public class TutorialManager : Singleton<TutorialManager>
                     {
                         GameManager.GetInstance.GameStopFlag = false;
                         HUDManager.GetInstance.Background.UIHighlight(false);
+                        
+                        K514PooledCoroutine.GetCoroutine().GetDeferredAction(6f,
+                                CAR =>
+                                {
+                                    GameManager.GetInstance.IsKeepBGMWhileGameStopped = false;
+                                    GameInformation.GetInstance.AddItem(ItemManager.GetInstance.CreateItem(ItemManager.ItemList.ShortBow, ItemManager.ItemRank.magic));
+                                    GameInformation.GetInstance.AddExp(200);
+                                    GameInformation.GetInstance.SetResultUI(GameResultStruct.GameResult.Win);
+                                })
+                            .SetTrigger();
                     });
                     HUDManager.GetInstance.Background.UIHighlight(true);
                     MessageBoxUI.GetInstance.SetLabel("대쉬버튼을 눌러 회피하세요");
-                    MessageBoxUI.GetInstance.SetTrigger(SceneEnvironmentContoller.GetInstance.LocalSystem,
-                        MessageBoxUI.MessageActionType.Showing, MessageBoxUI.MessageEventType.None);
+                    MessageBoxUI.GetInstance.SetTrigger(MessageBoxUI.MessageActionType.Showing, MessageBoxUI.MessageEventType.WithNoEvent);
                 };
 
                 break;
@@ -94,11 +112,27 @@ public class TutorialManager : Singleton<TutorialManager>
                     {
                         GameManager.GetInstance.GameStopFlag = false;
                         HUDManager.GetInstance.Background.UIHighlight(false);
+                        
+                        
                     });
                     HUDManager.GetInstance.Background.UIHighlight(true);
                     MessageBoxUI.GetInstance.SetLabel("공격버튼을 누르고 있으면 차징 할 수 있습니다.");
-                    MessageBoxUI.GetInstance.SetTrigger(SceneEnvironmentContoller.GetInstance.LocalSystem,
-                        MessageBoxUI.MessageActionType.Showing, MessageBoxUI.MessageEventType.None);
+                    MessageBoxUI.GetInstance.SetTrigger(MessageBoxUI.MessageActionType.Showing, MessageBoxUI.MessageEventType.WithNoEvent);
+                    
+                    ConditionalEventManager.GetInstance.AddConditionalAction(ConditionalEventManager.ActionFlag.OnChargeAttack,
+                        eventArgs =>
+                        {
+                            K514PooledCoroutine.GetCoroutine().GetDeferredAction(2f,
+                                    CAR =>
+                                    {
+                                        ConditionalEventManager.GetInstance.RemoveConditionalAction(ConditionalEventManager.ActionFlag.OnChargeAttack
+                                            ,"Charging Tutorial");
+                                        TutorialManager.GetInstance.PlayTutorial(TutorialName.ActiveSkill);
+                                    })
+                                .SetTrigger();
+                        }
+                        , "Charging Tutorial"
+                        , new CustomActionArgs());
                 };
 
                 break;
@@ -113,11 +147,14 @@ public class TutorialManager : Singleton<TutorialManager>
                     {
                         GameManager.GetInstance.GameStopFlag = false;
                         HUDManager.GetInstance.Background.UIHighlight(false);
+                        
+                        K514PooledCoroutine.GetCoroutine().GetDeferredAction(3f,
+                                CAR => { TutorialManager.GetInstance.PlayTutorial(TutorialName.Dash); })
+                            .SetTrigger();
                     });
                     HUDManager.GetInstance.Background.UIHighlight(true);
                     MessageBoxUI.GetInstance.SetLabel("스킬버튼을 눌러 스킬을 사용하세요");
-                    MessageBoxUI.GetInstance.SetTrigger(SceneEnvironmentContoller.GetInstance.LocalSystem,
-                        MessageBoxUI.MessageActionType.Showing, MessageBoxUI.MessageEventType.None);
+                    MessageBoxUI.GetInstance.SetTrigger(MessageBoxUI.MessageActionType.Showing, MessageBoxUI.MessageEventType.WithNoEvent);
                 };
 
                 break;

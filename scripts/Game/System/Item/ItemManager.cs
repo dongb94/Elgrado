@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using UnityEngine;
 using Random = UnityEngine.Random;
 
 public class ItemManager : Singleton<ItemManager>
@@ -54,7 +55,10 @@ public class ItemManager : Singleton<ItemManager>
         _itemInformationGroup[(int)ItemList.Goggles] = 
             new ItemInfo()
             {
-                Price = 50
+                Price = 50,
+                EquipmentDamage = 20,
+                EquipmentHealth = 30,
+                ReleaseCost = 200
             };
         _itemInformationGroup[(int)ItemList.IronBoots] = 
             new ItemInfo()
@@ -134,7 +138,10 @@ public class ItemManager : Singleton<ItemManager>
         _itemInformationGroup[(int)ItemList.ShortBow] = 
             new ItemInfo()
             {
-                Price = 50
+                Price = 50,
+                EquipmentDamage = 10,
+                EquipmentHealth = 20,
+                ReleaseCost = 100
             };
         _itemInformationGroup[(int)ItemList.ShortSword] = 
             new ItemInfo()
@@ -222,7 +229,7 @@ public class ItemManager : Singleton<ItemManager>
         }
 
         ran = Random.Range(0, (int)ItemRank.count);
-        return SetItemInfo(item, (ItemRank)RankGroup.GetValue(ran));
+        return CreateItem(item, (ItemRank)RankGroup.GetValue(ran));
     }
 
     public Item GetDefaultItem()
@@ -235,7 +242,7 @@ public class ItemManager : Singleton<ItemManager>
         ProbabilityRisingItemGroup.Add(item);
     }
 
-    private Item SetItemInfo(ItemList kinds, ItemRank rank)
+    public Item CreateItem(ItemList kinds, ItemRank rank)
     {
         var info = _itemInformationGroup[(int) kinds];
         
@@ -246,7 +253,8 @@ public class ItemManager : Singleton<ItemManager>
             .SetPrice(info.Price)
             .SetDamage(info.EquipmentDamage)
             .SetDefense(info.EquipmentDefense)
-            .SetHealth(info.EquipmentHealth);
+            .SetHealth(info.EquipmentHealth)
+            .SetReleaseCost(info.ReleaseCost);
         
         switch (kinds)
         {
@@ -263,11 +271,70 @@ public class ItemManager : Singleton<ItemManager>
             case ItemList.Goggles:
                 item.MountEvent = (args) =>
                 {
+                    var customArgs = new CustomActionArgs();
+                    customArgs.SetMorphable(args.Item);
                     
+                    ConditionalEventManager.GetInstance.AddConditionalAction(ConditionalEventManager.ActionFlag.OnKillEnemy,
+                        eventArgs =>
+                        {
+                            var itemInfo = eventArgs.Args["DamageUp"].MorphObject as Item;
+                            if(itemInfo.Release && Random.Range(0, 100)<20)
+                                Buff.CreateBuff(
+                                    PlayerChampionHandler.GetInstance.Handle,
+                                    PlayerChampionHandler.GetInstance.Handle,
+                                    Buff._MainCategoryType.AttackIncrease
+                                    )
+                                    .SetAction(Buff.EventType.OnBirth,
+                                        buffArgs =>
+                                        {
+                                            PlayerItemManager.GetInstance.EquipmentDamage += 10;
+                                        },
+                                        true
+                                        )
+                                    .SetAction(Buff.EventType.OnTerminate,
+                                        buffArgs => PlayerItemManager.GetInstance.EquipmentDamage -= 10,
+                                        true
+                                        )
+                                    .SetTrigger()
+                                    .BuffArgsClass.SetDurtaion(10);
+                        },
+                        "DamageUp",
+                        customArgs);
+                    
+                    ConditionalEventManager.GetInstance.AddConditionalAction(ConditionalEventManager.ActionFlag.OnChargeAttack,
+                        eventArgs =>
+                        {
+                            var itemInfo = eventArgs.Args["Shield"].MorphObject as Item;
+                            if(itemInfo.Release && Random.Range(0, 100)<50)
+                                Buff.CreateBuff(
+                                        PlayerChampionHandler.GetInstance.Handle,
+                                        PlayerChampionHandler.GetInstance.Handle,
+                                        Buff._MainCategoryType.Shield
+                                    )
+                                    .SetAction(Buff.EventType.OnBirth,
+                                        buffArgs =>
+                                        {
+                                            PlayerChampionHandler.GetInstance.Handle.Shield += 30;
+                                        },
+                                        true
+                                    )
+                                    .SetAction(Buff.EventType.OnTerminate,
+                                        buffArgs => PlayerChampionHandler.GetInstance.Handle.Shield -= 30,
+                                        true
+                                    )
+                                    .SetTrigger()
+                                    .BuffArgsClass.SetDurtaion(5);
+                        },
+                        "Shield",
+                        customArgs);
                 };
                 item.UnMountEvent = (args) =>
                 {
+                    ConditionalEventManager.GetInstance.RemoveConditionalAction(ConditionalEventManager.ActionFlag.OnKillEnemy,
+                        "DamageUp");
                     
+                    ConditionalEventManager.GetInstance.RemoveConditionalAction(ConditionalEventManager.ActionFlag.OnChargeAttack,
+                        "Shield");
                 };
                 break;
             case ItemList.IronBoots:
@@ -423,11 +490,35 @@ public class ItemManager : Singleton<ItemManager>
             case ItemList.ShortBow:
                 item.MountEvent = (args) =>
                 {
-                    
+                    var customArgs = new CustomActionArgs();
+                    customArgs.MorphObject = args.Item;
+                    ConditionalEventManager.GetInstance.AddConditionalAction(ConditionalEventManager.ActionFlag.OnNormalAttack,
+                        eventArgs =>
+                        {
+                            var itemInfo = eventArgs.Args["BonusShot"].MorphObject as Item;
+                            if (itemInfo.ActiveEffectCoolTime > Time.realtimeSinceStartup - 0.5f) return;
+
+                            var nearEnemy = PlayerChampionHandler.GetInstance.Handle.MostNearEnemy;
+                            if (itemInfo.Release && nearEnemy != null)
+                            {
+                                var caster = PlayerChampionHandler.GetInstance.Handle;
+                                var autoFire = caster.ThisAutoFireCluster
+                                    .AutoFireGroupMappedToGroupZwei[
+                                        Random.Range(0,
+                                            PlayerChampionHandler.GetInstance.Handle.ThisAutoFireCluster
+                                                .AutoFireGroupMappedToGroupZwei.Count)];
+                                
+                                autoFire.TracingFire(ProjectileFactory.Type.PurpleLightningBullet, caster.GetForward, nearEnemy);
+                                itemInfo.ActiveEffectCoolTime = Time.realtimeSinceStartup;
+                            }
+                        },
+                        "BonusShot",
+                        customArgs);
                 };
                 item.UnMountEvent = (args) =>
                 {
-                    
+                    ConditionalEventManager.GetInstance.RemoveConditionalAction(ConditionalEventManager.ActionFlag.OnNormalAttack,
+                        "BonusShot");
                 };
                 break;
             case ItemList.ShortSword:
@@ -567,5 +658,7 @@ public class ItemManager : Singleton<ItemManager>
         public float EquipmentDamage;
         public int EquipmentDefense;
         public int EquipmentHealth;
+
+        public int ReleaseCost;
     }
 }

@@ -7,6 +7,6 @@ public class DialogStartTrigger : MonoBehaviour
     private void OnTriggerEnter(Collider other)
     {
         if (!other.CompareTag("Player")) return;
-        DialogManager.GetInstance.PlayScript("SampleScript.json");        
+        DialogManager.GetInstance.PlayScript("SampleScript");        
     }
 }

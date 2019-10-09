@@ -7,7 +7,10 @@ public class AddItemTrigger : MonoBehaviour
     {
         if (!other.CompareTag("Player")) return;
         PlayerItemManager.GetInstance.Mount(
-            ItemManager.GetInstance.GetRandomItem()
+            ItemManager.GetInstance.CreateItem(ItemManager.ItemList.Goggles, ItemManager.ItemRank.magic)
+        );
+        PlayerItemManager.GetInstance.Mount(
+            ItemManager.GetInstance.CreateItem(ItemManager.ItemList.ShortBow, ItemManager.ItemRank.magic)
         );
     }
 }

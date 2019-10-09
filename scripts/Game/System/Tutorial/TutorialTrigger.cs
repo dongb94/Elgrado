@@ -7,7 +7,7 @@ public class TutorialTrigger : MonoBehaviour
 
     private bool _isEnable;
 
-    private void Awake()
+    public void CustomAwake()
     {
         _isEnable = true;
     }
@@ -15,7 +15,10 @@ public class TutorialTrigger : MonoBehaviour
     private void OnTriggerEnter(Collider collider)
     {
         if (!collider.CompareTag("Player") || !_isEnable) return;
-        TutorialManager.GetInstance.PlayTutorial(TutorialName);
+        var async = K514PooledCoroutine.GetCoroutine().GetDeferredAction(3f,
+            CAR => { TutorialManager.GetInstance.PlayTutorial((TutorialManager.TutorialName) CAR.I_factor); });
+        async._mParams.SetFactor((int) TutorialName);
+        async.SetTrigger();
         _isEnable = false;
     }
 }

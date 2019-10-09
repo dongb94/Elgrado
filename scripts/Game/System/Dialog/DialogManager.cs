@@ -9,7 +9,7 @@ using UnityEngine;
 /// </summary>
 public class DialogManager : Singleton<DialogManager>
 {
-	private string basePath = "Assets/Resources/Script/";
+	private string basePath = "Script/";
 	private Language currentLanguage;
 
 	private Queue<DialogData> currentDialog;
@@ -53,27 +53,25 @@ public class DialogManager : Singleton<DialogManager>
 
 	public void FRead(string path)
 	{
-	#if !UNITY_EDITOR
-		if (Application.platform == RuntimePlatform.Android)
-		{
-			basePath = Application.persistentDataPath;
-			basePath = basePath.Substring(0, basePath.LastIndexOf('/') + 1);
-		}
-		else if (Application.platform == RuntimePlatform.IPhonePlayer)
-		{
-			basePath = Application.dataPath.Substring(0, Application.dataPath.Length - 5);
-			basePath = basePath.Substring(0, basePath.LastIndexOf('/') + 1);
-			basePath = Path.Combine(basePath, "Documents/");
-		}
-	#endif
+//	#if !UNITY_EDITOR
+//		
+//		if (Application.platform == RuntimePlatform.Android)
+//		{
+//			basePath = Application.persistentDataPath;
+//			basePath = basePath.Substring(0, basePath.LastIndexOf('/') + 1);
+//		}
+//		else if (Application.platform == RuntimePlatform.IPhonePlayer)
+//		{
+//			basePath = Application.dataPath.Substring(0, Application.dataPath.Length - 5);
+//			basePath = basePath.Substring(0, basePath.LastIndexOf('/') + 1);
+//			basePath = Path.Combine(basePath, "Documents/");
+//		}
+//	#endif
 		
 		var finalPath = basePath + currentLanguage.ToString() + "/" + path;
+		var json = Resources.Load<TextAsset>(finalPath);
 		
-		using (var r = new StreamReader(finalPath))
-		{
-			var json = r.ReadToEnd();
-			currentDialog = DialogParser.Parse(json);
-		}
+		currentDialog = DialogParser.Parse(json.text);
 	}
 
 	public void SetLanguage(Language language)

@@ -17,6 +17,11 @@ public class Item {
     public Action<ItemEventArgs> MountEvent;
     public Action<ItemEventArgs> UnMountEvent;
 
+    public bool Release;
+    public int ReleaseCost;
+
+    public float ActiveEffectCoolTime;
+
     [NonSerialized]public readonly int ItemHashNum;
     
     #endregion </Field>
@@ -37,6 +42,10 @@ public class Item {
         //Cost = 0;
         Price = 0;
         ConsolidationRate = 0;
+
+        Release = false;
+
+        ActiveEffectCoolTime = 0;
         
         ItemHashNum = GetHashCode();
     }
@@ -80,6 +89,18 @@ public class Item {
     public Item SetHealth(int health)
     {
         EquipmentHealth = health;
+        return this;
+    }
+    
+    public Item SetRelease(bool release)
+    {
+        Release = release;
+        return this;
+    }
+
+    public Item SetReleaseCost(int cost)
+    {
+        ReleaseCost = cost;
         return this;
     }
 

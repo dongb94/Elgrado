@@ -1,26 +1,27 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using UnityEngine;
 
 // Inventory
 public class PlayerItemManager : Singleton<PlayerItemManager>
 {
     public List<Item> EquipmentItem { get; private set; }
     public List<Item> Inventory { get; private set; }
-    public long Money;
     //public int MaxCost;
     //private int CurrentCost;
     
     private float _equipmentDamage;
     private int _equipmentDefense;
     private int _equipmentHealth;
+    private int _WaveStone;
 
     protected override void Initialize()
     {
         base.Initialize();
         EquipmentItem = new List<Item>();
         Inventory = new List<Item>();
-        Money = 0;
+        WaveStone = 0;
         //CurrentCost = 0;
 
         _equipmentDamage = 0;
@@ -36,7 +37,7 @@ public class PlayerItemManager : Singleton<PlayerItemManager>
         set
         {
             _equipmentDamage = value;
-            PlayerChampionHandler.GetInstance.Handle.SetAutoFireClusterPreset();
+            PlayerChampionHandler.GetInstance.Handle?.SetAutoFireClusterPreset();
         }
     }
 
@@ -46,7 +47,7 @@ public class PlayerItemManager : Singleton<PlayerItemManager>
         set
         {
             _equipmentDefense = value;
-            PlayerChampionHandler.GetInstance.Handle.UpdateDefenceRate();
+            PlayerChampionHandler.GetInstance.Handle?.UpdateDefenceRate();
         }
     }
 
@@ -56,14 +57,35 @@ public class PlayerItemManager : Singleton<PlayerItemManager>
         set
         {
             _equipmentHealth = value;
+            if (PlayerChampionHandler.GetInstance.Handle == null) return;
             PlayerChampionHandler.GetInstance.Handle.CurrentHealthPoint += 
                 _equipmentHealth * PlayerChampionHandler.GetInstance.Handle.HealthPointRate;
             PlayerChampionHandler.GetInstance.Handle.UpdateReversedHealthPoint();
         }
     }
 
+    public int WaveStone
+    {
+        get => _WaveStone;
+        set
+        {
+            _WaveStone = Math.Max(0, value);
+            HUDManager.GetInstance.MoneyBar.Sync();
+            HUDManager.GetInstance.ItemSlot.Sync();
+        }
+    }
+
     #endregion
-//
+
+    #region <Methods>
+
+    public void AddWaveStone(int p_Count)
+    {
+        WaveStone += p_Count;
+    }
+
+    #endregion
+    
     #region <Function/AdministrateInvetory>
 
     public bool AddItem(Item item)
@@ -111,10 +133,10 @@ public class PlayerItemManager : Singleton<PlayerItemManager>
         EquipmentDefense += item.EquipmentDefense;
         EquipmentHealth += item.EquipmentHealth;
         
-        HUDManager.GetInstance.ItemSlot.SetItem(item, EquipmentItem.Count);
+        HUDManager.GetInstance.ItemSlot.SetItem(item);
         
         EquipmentItem.Add(item);
-        item.MountEvent(new ItemEventArgs());
+        item.MountEvent(new ItemEventArgs().SetItem(item));
         
         return true;
     }
@@ -123,15 +145,17 @@ public class PlayerItemManager : Singleton<PlayerItemManager>
     {
         if (!EquipmentItem.Contains(item)) return false;//not equip item
         //CurrentCost -= item.Cost;
+
+        var slotNum = EquipmentItem.IndexOf(item);
         
         EquipmentDamage -= item.EquipmentDamage;
         EquipmentDefense -= item.EquipmentDefense;
         EquipmentHealth -= item.EquipmentHealth;
         
-        HUDManager.GetInstance.ItemSlot.DeleteItem(EquipmentItem.Count-1);
+        HUDManager.GetInstance.ItemSlot.DeleteItem(slotNum);
         
         EquipmentItem.Remove(item);
-        item.UnMountEvent(new ItemEventArgs());
+        item.UnMountEvent(new ItemEventArgs().SetItem(item));
         
         return true;
     }

@@ -3,31 +3,38 @@ using UnityEngine;
 
 public class CustomUIItemSlot : CustomUIRoot
 {
-    [SerializeField]private UISprite[] _slot;
-    [SerializeField]private UISprite[] _rankFrame;
-
-    [NonSerialized]public Item[] ItemSlot;
-
+    public ItemSlotButtonTrigger[] ItemSlot;
+    
     protected override void Awake()
     {
         base.Awake();
-        
-        ItemSlot = new Item[3];
     }
 
-    public void SetItem(Item item, int slotNum)
+    public override void SetActive(ActiveType active)
     {
-        _slot[slotNum].spriteName = item.Name.ToString();
-        _rankFrame[slotNum].spriteName = item.Rank.ToString();
+        base.SetActive(active);
+        foreach (var itemSlot in ItemSlot)
+        {
+            itemSlot.SetActive(active);
+        }
+    }
 
-        ItemSlot[slotNum] = item;
+    public void SetItem(Item item)
+    {
+        var index = 0;
+        while (!ItemSlot[index++].SetItem(item));
     }
 
     public void DeleteItem(int slotNum)
     {
-        _slot[slotNum].spriteName = ItemManager.ItemList.EmptyEquipment.ToString();
-        _rankFrame[slotNum].spriteName = ItemManager.ItemRank.none.ToString();
+        ItemSlot[slotNum].DeleteItem();
+    }
 
-        ItemSlot[slotNum] = null;
+    public void Sync()
+    {
+        foreach (var itemSlot in ItemSlot)
+        {
+            itemSlot.Sync();
+        }
     }
 }

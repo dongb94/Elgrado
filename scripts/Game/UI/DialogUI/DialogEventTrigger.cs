@@ -8,6 +8,8 @@ public class DialogEventTrigger : CustomUIEventListener
         CustomUIEventCaster.GetInstance.LastUIEventInfo.IsActive = false;
         
         DialogManager.GetInstance.NextEvent();
+
+        SoundManager.GetInstance.Play_UI_Sfx(K514SfxStorage.BeepType.Touch);
         
         return true;
     }
